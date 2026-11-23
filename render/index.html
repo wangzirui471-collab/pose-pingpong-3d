@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>体感乒乓 3D</title>
+<style>
+:root {
+  color-scheme: dark;
+  font-family: "Microsoft YaHei UI","Noto Sans SC",Arial,sans-serif;
+  --bg:#0d0d11; --panel:#18171de8; --text:#f5f1ec; --muted:#c0bac1;
+  --accent:#f2c78f; --opponent:#ff8787; --line:#e7d1d42f;
+  --edge:clamp(12px,3vw,48px);
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--text); overflow:hidden; }
+button,select { font:inherit; }
+button { color:inherit; cursor:pointer; }
+button:focus-visible,summary:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+button:disabled { cursor:default; opacity:.48; }
+[hidden] { display:none !important; }
+#gl { position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+.vignette { position:fixed; inset:0; pointer-events:none; background:linear-gradient(180deg,#100d14b5,transparent 25%,transparent 73%,#100d14dc),radial-gradient(ellipse at 50% 43%,transparent 43%,#130b1768 100%); }
+.ui { position:fixed; z-index:2; }
+.panel { background:var(--panel); border:1px solid var(--line); box-shadow:0 10px 34px #040b153d; }
+.k { color:var(--muted); }
+.v.on { color:var(--accent); }.v.warn { color:#ffdba3; }
+#brand { top:25px; left:var(--edge); display:flex; align-items:center; gap:11px; font-size:16px; font-weight:800; letter-spacing:.075em; }
+.brand-mark { width:33px; height:33px; display:grid; place-items:center; border-radius:7px; background:var(--accent); color:#221710; }
+.brand-mark::before { content:""; width:14px;height:17px; border:3px solid currentColor; border-radius:8px 8px 5px 5px; transform:rotate(-32deg); box-shadow:3px 5px 0 -4px #152215; }
+#top { top:24px; left:50%; transform:translateX(-50%); min-width:275px; width:clamp(290px,31vw,470px); border-radius:12px; overflow:hidden; }
+.score-card { display:grid; grid-template-columns:1fr 18px 1fr; align-items:center; padding:9px 15px 8px; }
+.competitor { display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:12px; font-weight:800; color:var(--muted); }
+.competitor.player strong {color:var(--accent);}
+.competitor.ai { flex-direction:row-reverse; }.competitor.ai strong {color:var(--opponent);}
+.score-card strong { font:800 clamp(33px,4vw,52px)/.91 "Arial Narrow",Arial,sans-serif; font-variant-numeric:tabular-nums; letter-spacing:-.06em; }
+.separator { text-align:center; opacity:.46; font-size:20px; }
+.score-meta { display:flex; justify-content:space-between; align-items:center; gap:10px; border-top:1px solid var(--line); padding:8px 14px; font-size:11px; color:var(--muted); letter-spacing:.04em; }
+.score-meta b {color:var(--text); }
+#settings { top:24px; right:var(--edge); max-width:min(330px,calc(100vw - var(--edge)*2)); }
+summary { list-style:none; cursor:pointer; }.menu-label {display:flex; gap:8px; width:max-content; margin-left:auto;align-items:center;font-size:12px;font-weight:700;}
+summary::-webkit-details-marker {display:none;}
+.menu-label,.tool,.control,.stroke,.difficulty,.move { border:1px solid var(--line); border-radius:8px; background:#1c1b23e8; padding:8px 11px; }
+button:hover,.menu-label:hover { background:#403139; }
+.menu { margin-top:8px; border-radius:12px; width:min(310px,calc(100vw - var(--edge)*2)); max-height:calc(100dvh - 80px); overflow:auto; padding:15px; }
+.menu h2 { font-size:12px; letter-spacing:.07em; margin:0 0 8px; }
+.menu section + section { margin-top:13px; padding-top:12px; border-top:1px solid var(--line); }
+.menu .strip {display:flex; flex-wrap:wrap; align-items:center;gap:5px;}
+.difficulty,.tool { font-size:11px; padding:7px 9px; }
+.difficulty.active,.tool[aria-pressed=true] {background:var(--accent);color:#221710;font-weight:800;border-color:transparent;}
+.menu p,.detail-text { font-size:11px; line-height:1.55; color:var(--muted); margin:7px 0 0; }
+.menu .diag-title {font-size:12px; margin-top:12px;color:var(--opponent);}
+.row {display:flex;justify-content:space-between;gap:10px;font-size:11px;margin-top:5px;}
+#event-feed { left:var(--edge); bottom:clamp(123px,17vh,170px); font-size:12px; font-weight:800; color:var(--text); max-width:240px; pointer-events:none; }
+#s_tech {display:block;color:var(--accent); margin-top:5px;font-size:18px;line-height:1.15; }
+#s_last {display:block;color:var(--muted);margin-top:5px;font-size:11px;font-weight:500;}
+#bottom { left:var(--edge); right:var(--edge); bottom:17px; display:flex;justify-content:space-between;align-items:end;gap:12px; pointer-events:none; }
+#bottom button {pointer-events:auto;}
+.shot-strip,.match-controls { display:flex; align-items:center; gap:6px; }
+.stroke {min-width:64px;text-align:left;font-size:12px;line-height:1.28;padding:8px 10px;}
+.stroke kbd,.control kbd {display:block;color:var(--muted); font:700 9px/1.4 Arial,sans-serif;margin-bottom:2px;}
+.stroke[aria-pressed=true] { color:#221710; background:var(--accent); border-color:transparent; font-weight:900; }
+.stroke[aria-pressed=true] kbd {color:#603421;}
+.control {white-space:nowrap;font-size:12px;}
+#b_serve {background:var(--accent);color:#221710;font-weight:850;border-color:transparent;}.control#b_serve kbd {color:#5d362b;}
+#hint {position:fixed;left:var(--edge);bottom:80px;margin:0;font-size:11px;color:var(--muted);pointer-events:none;}
+#target-label {position:fixed;right:var(--edge);bottom:78px;font-size:11px;color:var(--muted);pointer-events:none;}
+#toast {left:50%; top:23%; transform:translate(-50%,-8px); border-radius:11px; text-align:center; padding:10px 18px; opacity:0; transition:opacity .15s,transform .15s; pointer-events:none; min-width:150px; }
+#toast.show {opacity:1;transform:translate(-50%,0);}.toast-body {display:block;color:var(--muted);margin-top:4px;font-size:11px;}
+#touch-controls {display:none;}
+#touch-controls button {touch-action:manipulation;}
+@media (pointer:coarse) {
+  body:not(.lobby) #touch-controls {
+    position:fixed; inset:0; z-index:5; display:flex; align-items:flex-end; justify-content:space-between; pointer-events:none;
+    padding:max(10px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right))
+      max(13px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));
+  }
+  #bottom,#hint,#target-label,#event-feed,#b_live {display:none;}
+  #walk {
+    position:relative; pointer-events:auto; touch-action:none; user-select:none; -webkit-user-select:none;
+    width:clamp(98px,29vw,133px); aspect-ratio:1; flex:none; margin-bottom:3px;
+    border:1px solid #e6c7aa83; border-radius:50%; background:#16141ac9;
+    display:grid; place-items:center; color:#f2c78f;
+    box-shadow:0 0 0 4px #0c0b134d,0 8px 22px #0007;
+  }
+  #walk::before {
+    content:""; position:absolute; inset:17%; border:1px dashed #ebd4bf68; border-radius:inherit;
+  }
+  #walk::after {
+    content:""; position:absolute; inset:3%;
+    background:
+      radial-gradient(circle at 50% 2%,#f2c78f 0 1.5px,transparent 2.5px),
+      radial-gradient(circle at 2% 50%,#f2c78f 0 1.5px,transparent 2.5px),
+      radial-gradient(circle at 98% 50%,#f2c78f 0 1.5px,transparent 2.5px),
+      radial-gradient(circle at 50% 98%,#f2c78f 0 1.5px,transparent 2.5px);
+    pointer-events:none;
+  }
+  #walk-knob {
+    width:38%; aspect-ratio:1; border-radius:50%; pointer-events:none;
+    border:1px solid #fff0d4; background:linear-gradient(145deg,#ebc49c,#b37855);
+    box-shadow:0 4px 10px #0009; transform:translate(var(--stick-x,0px),var(--stick-y,0px));
+  }
+  .touch-panel {
+    display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px;
+    pointer-events:auto; width:clamp(150px,49vw,205px); padding:7px; border-radius:15px;
+    border:1px solid #d9bac65c; background:#17151cdb; box-shadow:0 7px 23px #0007;
+  }
+  .touch-panel button {
+    min-height:42px; border:1px solid #cdb7c655; border-radius:8px; font-size:13px; font-weight:750;
+    background:#372a35; color:#fff4e8; padding:3px;
+  }
+  .touch-panel button[aria-pressed=true],.touch-panel .touch-power {
+    background:#f1c391; border-color:#ffe5c5; color:#2c1920;
+  }
+  .touch-panel .touch-power {grid-column:1/-1;}
+  .touch-panel .touch-full {grid-column:1/-1;}
+  .touch-wing {display:grid; grid-template-columns:repeat(3,1fr); gap:4px;}
+  .touch-wing button {min-height:35px;font-size:11px;}
+  .touch-state {min-height:14px; color:#e7cbb4; font-size:10px; text-align:center;}
+  @media (orientation:landscape) {
+    .touch-panel {width:190px;}
+    #walk {width:108px;}
+    .touch-panel button {min-height:36px;}
+  }
+}
+.dialog { position:fixed; z-index:8; top:50%;left:50%; transform:translate(-50%,-50%); width:min(500px,calc(100vw - 26px));max-height:90dvh;overflow:auto;border-radius:14px;padding:23px; }
+.dialog h2 { margin:0 0 8px; font-size:26px; }.dialog p { font-size:13px; color:var(--muted);line-height:1.65; }.dialog .control { margin-top:6px; }
+#err { top:35%;left:50%;transform:translateX(-50%);z-index:10;padding:18px;border-radius:12px;max-width:92%; }
+#log {max-height:75px;overflow:hidden;white-space:pre-line;}
+@media(max-width:830px) { #brand { font-size:12px; } .brand-mark { width:28px;height:28px; } .stroke{min-width:51px;padding:6px;}.match-controls .control {padding:6px;}}
+@media(max-width:600px) { #top{top:11px;left:var(--edge);transform:none;min-width:0;width:min(245px,calc(100% - 115px));} #settings{top:11px;} #brand{display:none;} #bottom{flex-wrap:wrap;gap:6px;bottom:7px;} .shot-strip{width:100%;}.stroke{flex:1;} #hint{bottom:106px;max-width:88vw;} #target-label{display:none;} #event-feed{display:none;} }
+@media(prefers-reduced-motion:reduce) { *,*::before {transition:none!important;} }
+
+body.lobby .vignette {background:linear-gradient(90deg,#100d13f1 2%,#100d13bb 32%,#100d130c 68%),linear-gradient(0deg,#100d13bb,transparent 38%);}
+body.lobby #brand,body.lobby #top,body.lobby #bottom,body.lobby #hint,body.lobby #target-label,body.lobby #event-feed,body.lobby #touch-controls {display:none;}
+#lobby {left:clamp(28px,8.5vw,155px);top:48%;transform:translateY(-50%); width:min(440px,51vw);}
+.lobby-kicker {display:flex;align-items:center;gap:10px;font-size:12px;letter-spacing:.23em;color:#ffd9b1;font-weight:800;}
+.lobby-kicker span {width:31px;height:2px;background:#ff7b73;}
+#lobby h1 {font-size:clamp(67px,9.7vw,155px);font-weight:950;letter-spacing:-.09em;line-height:.91;margin:17px 0 24px;text-shadow:0 4px 35px #0b050e72;}
+#lobby h1 span {color:#fc827c;margin-left:.10em;}
+.lobby-opponent {display:flex;align-items:baseline;gap:13px;color:var(--muted);margin-bottom:25px;font-size:13px;}
+.lobby-opponent strong {font-size:22px;color:#f9eeec;letter-spacing:.07em;}
+.lobby-buttons {display:flex;align-items:center;gap:10px;}
+.start-match {display:flex;justify-content:space-between;align-items:center;gap:28px;border:0;color:#291817;background:#f2c78f;border-radius:6px;padding:11px 13px 11px 17px;font-size:14px;font-weight:900;}
+.start-match:hover {background:#ffdaa8;}
+.start-match i {font-style:normal;font-size:18px;}
+#top {background:#18151cc9;border-top:2px solid #fa9184;}
+#settings .menu-label {background:#211b22d9;}
+@media(max-width:620px){body.lobby .vignette {background:linear-gradient(0deg,#131015f5 5%,#13101585 43%,transparent 66%);}#lobby{top:auto;bottom:32px;left:var(--edge);transform:none;width:calc(100% - 2 * var(--edge));}#lobby h1 {font-size:clamp(55px,13vw,82px);margin:12px 0 13px;} .lobby-opponent {margin-bottom:14px;} }
+
+
+.competitor small {opacity:.7;font-size:9px;margin-left:2px;}
+.lobby-opponent {display:block;margin:0 0 19px;}
+.lobby-opponent > span {display:block; margin:0 0 7px;color:#e8cbbd;font-size:12px;}
+.opponents {display:flex;gap:7px;flex-wrap:wrap;}
+.opponent-choice {display:grid;gap:3px;min-width:109px;padding:8px 10px;text-align:left;background:#211b24db;border:1px solid #dec3c151;border-radius:7px;font-size:15px;font-weight:800;}
+.opponent-choice small {font-size:10px;color:var(--muted);font-weight:600;}
+.opponent-choice[aria-pressed=true] {background:#4a292e;border-color:#f2c78f;}
+.opponent-choice[aria-pressed=true] small {color:#f3c3a1;}
+#serve-tray {display:grid;gap:6px;}
+.serve-countdown {color:var(--muted);font-size:11px;white-space:nowrap;margin-left:2px;}
+#serve-tray .stroke {border-color:#f2c78f61; background:#34242af5; color:#fff1de; min-width:68px;}
+#serve-options {flex-wrap:wrap;}
+#serve-tray [data-serve-key][aria-pressed=true],
+#serve-tray .quick-serve {background:var(--accent); color:#251916;}
+#serve-tray [data-serve-key][aria-pressed=true] kbd {color:#644133;}
+#serve-tray .quick-serve kbd {color:#644133;}
+#serve-tray button:hover {background:#663b40;}
+#serve-tray .quick-serve:hover {background:#ffdbab;}
+#assist_settings {margin-top:5px;}
+#s_tech.outside {color:#ffab9d;}
+@media (max-width:600px) {
+  #serve-tray {width:100%;gap:4px;}
+  #serve-tray .stroke {min-width:0;padding:6px 8px;}
+  #serve-tray kbd {font-size:8px;white-space:nowrap;}
+  .opponent-choice {min-width:93px;font-size:12px;padding:6px 8px;}
+}
+
+</style>
+</head>
+<body class="lobby">
+<canvas id="gl" aria-label="乒乓球场"></canvas>
+<div class="vignette" aria-hidden="true"></div>
+<header id="brand" class="ui"><i aria-hidden="true" class="brand-mark"></i><span>体感乒乓</span></header>
+<section id="top" class="ui panel" aria-label="比分">
+  <div class="score-card">
+    <div class="competitor player"><span>樊振东 <small>你</small></span><strong id="sp">0</strong></div>
+    <span class="separator" aria-hidden="true">·</span>
+    <div class="competitor ai"><span id="s_opponent">王楚钦</span><strong id="sa">0</strong></div>
+  </div>
+  <div class="score-meta"><span id="s_state">准备开球</span><span>发球 <b id="s_server">你</b></span><b id="s_diff">新手</b></div>
+</section>
+<main id="lobby" class="ui" aria-labelledby="lobby_title">
+  <div class="lobby-kicker"><span></span> 单打挑战</div>
+  <h1 id="lobby_title">体感<br>乒乓<span>.</span></h1>
+  <div class="lobby-opponent">
+    <span>你操控樊振东</span>
+    <div class="opponents" aria-label="选择对手">
+      <button class="opponent-choice" data-opponent="wang" aria-pressed="true">王楚钦 <small>左手持拍</small></button>
+      <button class="opponent-choice" data-opponent="harimoto" aria-pressed="false">张本智和 <small>右手持拍</small></button>
+    </div>
+  </div>
+  <div class="lobby-buttons"><button class="start-match" id="b_start">上台对打 <i aria-hidden="true">↗</i></button><button class="control" id="b_live">连接感知台</button></div>
+</main>
+<details id="settings" class="ui"><summary class="menu-label">☷ 设置</summary>
+  <div class="menu panel">
+    <section><h2>难度</h2>
+      <button id="b_assist" class="tool" type="button" aria-pressed="true">自动接球</button> <button id="b_auto_serve" class="tool" type="button" aria-pressed="true">自动发球</button>
+      <p id="assist_settings">走进接球范围就会自动挥拍。</p>
+      <div class="strip" style="margin-top:8px;">
+        <button class="difficulty active" data-diff="novice" aria-pressed="true">1 新手</button><button class="difficulty" data-diff="normal">2 普通</button>
+        <button class="difficulty" data-diff="hard">3 困难</button><button class="difficulty" data-diff="devil">4 魔鬼</button>
+      </div>
+    </section>
+    <section>
+      <h2>输入与持拍</h2>
+      <div class="strip"><button id="b_input" class="tool">键鼠</button><button id="b_hand" class="tool">右手持拍</button><button id="b_source" class="tool">切到感知台</button><button id="b_mirror" class="tool" aria-pressed="false">左右镜像</button></div>
+      <div class="strip" style="margin-top:6px;"><button id="b_calib" class="tool">重新标定站姿</button><button id="b_forefit" class="tool">记录正手</button><button id="b_backfit" class="tool">记录反手</button></div>
+      <p id="s_fit" role="status"></p>
+    </section>
+    <section>
+      <h2>比赛</h2>
+      <div class="strip"><button id="b_reset" class="tool">重开比赛</button><button id="b_lobby" class="tool">换对手</button><button id="b_help" class="tool">操作说明</button><button id="b_toss" class="tool" hidden>手动抛球</button></div>
+      <details>
+        <summary class="diag-title">输入与比赛数据</summary>
+        <div class="row"><span class="k">骨骼源</span><span class="v" id="s_link"></span></div>
+        <div class="row"><span class="k">帧 / 延迟</span><span class="v" id="s_frames"></span></div>
+        <div class="row"><span class="k">持拍手</span><span class="v" id="s_hand"></span></div>
+        <div class="row"><span class="k">站姿</span><span class="v" id="s_cal"></span></div>
+        <div class="row"><span class="k">画质</span><span class="v" id="s_render"></span></div>
+        <div class="row"><span class="k">视角</span><span class="v" id="s_view"></span></div>
+        <div class="row"><span class="k">球速 / 旋转</span><span class="v"><span id="s_speed"></span> · <span id="s_spin"></span></span></div>
+        <div class="row"><span class="k">回合 / 击球</span><span class="v" id="s_rally"></span></div>
+        <div class="row"><span class="k">拍位 / 站位</span><span class="v"><span id="s_pad"></span> · <span id="s_move"></span></span></div>
+        <div class="row"><span class="k">对手发球速</span><span class="v" id="s_serve"></span></div>
+        <p id="log"></p>
+      </details>
+    </section>
+  </div>
+</details>
+<div class="ui" id="event-feed"><span id="s_mode">键鼠控制</span><strong id="s_tech">自动接球</strong><small id="s_last">移动到来球附近</small></div>
+<div class="ui panel" id="toast" role="status"></div>
+<p id="hint">WASD 走位 · 到位自动接球</p>
+<div id="target-label">移动鼠标选对方落点</div>
+<div id="touch-controls" aria-label="手机球场控制">
+  <div id="walk" role="group" aria-label="拖动摇杆走位"><div id="walk-knob"></div></div>
+  <section class="touch-panel" id="touch-rally" aria-label="回球方式">
+    <div class="touch-wing touch-full" role="group" aria-label="持拍侧">
+      <button type="button" data-touch-side="auto" aria-pressed="true">自动</button>
+      <button type="button" data-touch-side="forehand" aria-pressed="false">正手</button>
+      <button type="button" data-touch-side="backhand" aria-pressed="false">反手</button>
+    </div>
+    <button type="button" data-touch-stroke="block">挡球</button>
+    <button type="button" data-touch-stroke="drive">快攻</button>
+    <button type="button" data-touch-stroke="topspin">拉球</button>
+    <button type="button" data-touch-stroke="cut">切球</button>
+    <button type="button" class="touch-power" data-touch-stroke="smash">扣杀</button>
+    <span class="touch-state touch-full" id="touch-return-status"></span>
+  </section>
+  <section class="touch-panel" id="touch-serve" aria-label="发球方式" hidden>
+    <button type="button" data-serve-key="KeyW" aria-pressed="false">上旋</button>
+    <button type="button" data-serve-key="KeyS" aria-pressed="false">下旋</button>
+    <button type="button" data-serve-key="KeyA" aria-pressed="false">左侧旋</button>
+    <button type="button" data-serve-key="KeyD" aria-pressed="false">右侧旋</button>
+    <button type="button" class="touch-full" data-serve-key="KeyF" aria-pressed="false">加速</button>
+    <button type="button" class="touch-power" id="touch-serve-commit">发不转球</button>
+    <span class="touch-state touch-full" id="touch-serve-status"></span>
+  </section>
+</div>
+<footer id="bottom" class="ui">
+  <div id="manual-strokes" class="shot-strip" aria-label="击球方式" hidden>
+    <button class="stroke" data-stroke="block"><kbd>Q</kbd>挡球</button>
+    <button class="stroke" data-stroke="drive" aria-pressed="true"><kbd>E</kbd>快攻</button>
+    <button class="stroke" data-stroke="topspin"><kbd>R</kbd>拉弧圈</button>
+    <button class="stroke" data-stroke="push"><kbd>F</kbd>搓球</button>
+    <button class="stroke" data-stroke="smash"><kbd>G</kbd>扣杀</button>
+  </div>
+  <div id="serve-tray" aria-label="发球方式" hidden>
+    <div id="serve-options" class="shot-strip" hidden>
+      <button class="stroke" data-serve-key="KeyW" aria-pressed="false"><kbd>W</kbd>上旋</button>
+      <button class="stroke" data-serve-key="KeyS" aria-pressed="false"><kbd>S</kbd>下旋</button>
+      <button class="stroke" data-serve-key="KeyA" aria-pressed="false"><kbd>A</kbd>左侧旋</button>
+      <button class="stroke" data-serve-key="KeyD" aria-pressed="false"><kbd>D</kbd>右侧旋</button>
+      <button class="stroke" data-serve-key="KeyF" aria-pressed="false"><kbd>F</kbd>加速</button>
+      <button class="control quick-serve" id="b_serve_commit">不转发球</button>
+    </div>
+    <div class="shot-strip">
+      <button class="stroke quick-serve" data-serve="plain"><kbd>空格</kbd>立即发球</button>
+      <button class="control" id="b_serve_options" aria-pressed="false">发球花样</button>
+      <span id="serve_countdown" class="serve-countdown"></span>
+    </div>
+  </div>
+  <div class="match-controls">
+    <span class="control" id="b_view">第一人称 <kbd>V</kbd></span>
+  </div>
+</footer>
+<section id="help" hidden class="dialog panel" aria-labelledby="help_title" role="dialog">
+  <h2 id="help_title">操作说明</h2>
+  <p>手机左手拖摇杆走位，右手点球技或发球组合。默认自动接球。键鼠用 WASD 或方向键走位，体感用身体走位。来球超出伸拍范围时需要补位。正手侧和反手侧各有接球范围，只有胸前可以用两种动作。</p>
+  <p>体感会识别持拍侧。手停住是挡球，缓慢挥拍是拉球，向下挥是切球，大幅摆臂或快速上抬是扣杀。</p>
+  <p>倒计时会自动发不转球。按住空格可叠加 W 上旋、S 下旋、A 左侧旋、D 右侧旋、F 加速，松开空格发球。W 和 S 同按发不转，也能加 F。可以点「发球花样」组合。</p>
+  <p>回球也用空格组合。空格挡球，叠加 W 拉球、S 切球、F 扣杀。A 指定反手，D 指定正手。比如空格 + W + A 是反手拉球。辅助开启时可以提前选下一拍。按住空格时，WASD 只用于组合，松开后恢复走位。</p>
+  <p>想练挥拍可在设置关闭自动接球。键鼠用 J 正手、K 反手，Q / E / R / F / G 选择球技。使用感知台先完成站姿标定，再按需要记录正手和反手。默认第一人称，按 V 切换。每人发两球，10 平后每分换发，领先 2 分获胜。合法发球擦网重发，回合擦网继续。</p>
+  <button class="control" id="b_closehelp">返回球场</button>
+</section>
+<section id="over" hidden class="dialog panel" aria-labelledby="over_title" role="dialog">
+  <h2 id="over_title">比赛结束</h2><p id="over_sub"></p><button id="b_rematch" class="control">再打一局</button>
+</section>
+<div id="err" class="ui panel" role="alert" hidden></div>
+<script src="../vendor/three.min.js"></script>
+<script src="../core/constants.js"></script>
+<script src="../core/physics.js"></script>
+<script src="../core/paddle.js"></script>
+<script src="../core/rules.js"></script>
+<script src="../core/court.js"></script>
+<script src="../core/ai.js"></script>
+<script src="../core/match.js"></script>
+<script src="../input/frame.js"></script>
+<script src="../input/calibrator.js"></script>
+<script src="../input/hand_tracker.js"></script>
+<script src="../input/body_tracker.js"></script>
+<script src="../input/source.js"></script>
+<script src="../input/pipeline.js"></script>
+<script src="arena-art.js"></script>
+<script src="wang-model.js"></script>
+<script src="athlete-mesh.js"></script>
+<script src="athlete-rig.js"></script>
+<script src="scene3d.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
