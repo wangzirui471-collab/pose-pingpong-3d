@@ -3,9 +3,11 @@
   var PP = window.PP, K = PP.constants, V = PP.physics, shots = PP.court.PROFILES;
   var $ = function (id) { return document.getElementById(id); };
   var match = new PP.match.Match({ difficulty: 'novice', firstServer: 'player' });
-  var pipe = new PP.pipeline.Pipeline({ match: match });
+  var playerHand = 'right';
+  try { if (localStorage.getItem('pp3d-player-hand') === 'left') playerHand = 'left'; } catch (_) {}
+  var pipe = new PP.pipeline.Pipeline({match:match,part:playerHand});
   var mock = new PP.source.MockSource({ hz: 60 });
-  var input = { mode: 'keyboard', hand: 'right', move: [0, 0], stance: null, assist: true, autoServe:true, servePicking:false };
+  var input = { mode: 'keyboard', hand: playerHand, move: [0, 0], stance: null, assist: true, autoServe:true, servePicking:false };
   var opponents = { wang:'王楚钦', harimoto:'张本智和' }, opponent = 'wang';
   var chordTimer = null, chord = null, serveOptionsOpen = false;
   var chordKeys = new Set(['KeyW', 'KeyS', 'KeyA', 'KeyD', 'KeyF']);
@@ -20,6 +22,8 @@
   var last = performance.now(), updateAt = 0, frameCount = 0, toastTimer = null, scene;
   var panel = $('settings'), help = $('help');
   var difficulties = Array.from(document.querySelectorAll('[data-diff]'));
+  var handOptions = Array.from(document.querySelectorAll('[data-player-hand]'));
+  var handQuick = $('b_hand');
   var techniqueButtons = Array.from(document.querySelectorAll('[data-stroke]'));
   var movementKeys = {
     KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right',
@@ -86,7 +90,31 @@
     } catch (_) {}
   }
 
+  function handSwitchAvailable() {
+    return !match.autoServe && !(match.rules.state === 'toss' && match.rules.server === 'player');
+  }
+
+  function refreshHandButtons() {
+    var left = input.hand === 'left';
+    var label = left ? '左手持拍' : '右手持拍';
+    setText('hand-label',label);
+    handQuick.setAttribute('aria-label','当前'+label+'，点击切换为'+(left ? '右手' : '左手'));
+    for (var button of handOptions) button.setAttribute('aria-pressed',button.dataset.playerHand===input.hand);
+  }
+
+  function setHand(hand) {
+    if (hand === input.hand || !handSwitchAvailable()) return;
+    input = Object.assign({},input,{hand:hand,stance:null,move:[0,0]});
+    match.setPlayerControl(input);
+    pipe.setPart(hand);
+    loadFits();
+    clearKeys();
+    try { localStorage.setItem('pp3d-player-hand',hand); } catch (_) {}
+    refreshHandButtons();
+  }
+
   function updateControls() {
+    refreshHandButtons();
     pipe.autoServeGesture = input.mode === 'pose' && usesSensor && !input.assist;
     var keyboard = input.mode === 'keyboard';
     setText('b_input', keyboard ? '键鼠' : '体感');
@@ -321,13 +349,10 @@
     setText('b_source', usesSensor ? '切到模拟源' : '切到感知台');
     setText('b_live', usesSensor ? '体感标定' : '连接感知台');
   };
-  $('b_hand').onclick = function () {
-    input = Object.assign({}, input, {hand:input.hand === 'left' ? 'right' : 'left'});
-    match.setPlayerControl(input);
-    pipe.setPart(input.hand);
-    loadFits();
-    setText('b_hand', input.hand === 'left' ? '左手持拍' : '右手持拍');
-  };
+  bindTouchButton(handQuick,function () { setHand(input.hand === 'left' ? 'right' : 'left'); });
+  for (var button of handOptions) {
+    bindTouchButton(button,function () { setHand(this.dataset.playerHand); });
+  }
   $('b_calib').onclick = function () { pipe.recalibrate(); toast('站姿标定', '站直并保持自然准备姿势'); };
   $('b_forefit').onclick = function () { capture('forehand'); };
   $('b_backfit').onclick = function () { capture('backhand'); };
@@ -499,6 +524,9 @@
 
   function present(snapshot, out, events, now) {
     var rules = snapshot.rules;
+    var handLocked = !handSwitchAvailable();
+    handQuick.disabled = handLocked;
+    for (var option of handOptions) option.disabled = handLocked;
     setText('sp', rules.score.player);
     setText('sa', rules.score.ai);
     var serverName = rules.server === 'player' ? '你' : opponents[opponent];
@@ -576,7 +604,8 @@
     var connection = pipe.status();
     setText('s_link', usesSensor ? connection.connected ? '感知台已连接' : '等待感知台' : '模拟骨骼');
     setText('s_frames', connection.frames + ' / ' + connection.ageMs + ' ms');
-    setText('s_hand', out.hand && out.hand.ok ? '有效点 ' + out.hand.validCount + '/4' : '未识别');
+    setText('s_hand',(input.hand === 'left' ? '左手' : '右手')+
+      (input.mode === 'pose' ? (out.hand?.ok ? ' · 有效点 '+out.hand.validCount+'/4' : ' · 未识别') : ''));
     var stanceReady = input.assist ? out.stanceReady : out.calibrated;
     var stanceProgress = input.assist ? out.stanceProgress : out.calibrationProgress;
     setText('s_cal', stanceReady ? '已就绪' : Math.round(stanceProgress * 100) + '%');

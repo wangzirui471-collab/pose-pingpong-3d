@@ -61,12 +61,23 @@
     return true;
   };
 
+  function readyPaddle(feet,side) {
+    return [feet.x+side*.18,1.02,feet.z-.34];
+  }
+
   Match.prototype.setPlayerTarget = function (target) { this.playerTarget = target; };
   Match.prototype.setPlayerControl = function (control) {
     if (!control || !this.control || this.control.mode !== control.mode || this.control.hand !== control.hand || this.control.assist !== control.assist) {
       this.stroke = this.strokeRequest = this.returnChoice = null;
       this.assistGuide = null;
       this.assistScan = 0;
+    }
+    if (control && this.control?.hand !== control.hand) {
+      var p = readyPaddle(this.playerStance,control.hand === 'left' ? -1 : 1);
+      this.playerPaddle.p = p;
+      this.playerPaddle.prevP = V.copy3(p);
+      this.playerPaddle.v = [0,0,0];
+      this.playerPaddle.n = [0,0,-1];
     }
     this.control = control;
   };
@@ -338,7 +349,7 @@
       }
     }
 
-    var ready = [feet.x + hand * .18, 1.02, feet.z - .34];
+    var ready = readyPaddle(feet,hand);
     var target = { p: ready, n: [0, 0, -1], quality: 1, grip: 1 };
     var swing = this.stroke;
     if (swing?.fallback && !swing.checked) {

@@ -39,6 +39,14 @@ button:disabled { cursor:default; opacity:.48; }
 .score-meta { display:flex; justify-content:space-between; align-items:center; gap:10px; border-top:1px solid var(--line); padding:8px 14px; font-size:11px; color:var(--muted); letter-spacing:.04em; }
 .score-meta b {color:var(--text); }
 #settings { top:24px; right:var(--edge); max-width:min(330px,calc(100vw - var(--edge)*2)); }
+#b_hand {
+  top:66px; right:var(--edge); display:flex; align-items:center; gap:5px;
+  min-height:39px; padding:6px 9px; font-size:11px; font-weight:750; touch-action:manipulation;
+}
+#b_hand span[aria-hidden] {color:var(--accent);font-size:13px;}
+#settings[open] + #b_hand {visibility:hidden;}
+#b_hand:disabled,[data-player-hand]:disabled {opacity:.55;cursor:default;}
+@media(max-width:600px) { #b_hand {top:51px;min-height:38px;} }
 summary { list-style:none; cursor:pointer; }.menu-label {display:flex; gap:8px; width:max-content; margin-left:auto;align-items:center;font-size:12px;font-weight:700;}
 summary::-webkit-details-marker {display:none;}
 .menu-label,.tool,.control,.stroke,.difficulty,.move { border:1px solid var(--line); border-radius:8px; background:#1c1b23e8; padding:8px 11px; }
@@ -215,7 +223,11 @@ body.lobby #brand,body.lobby #top,body.lobby #bottom,body.lobby #hint,body.lobby
     </section>
     <section>
       <h2>输入与持拍</h2>
-      <div class="strip"><button id="b_input" class="tool">键鼠</button><button id="b_hand" class="tool">右手持拍</button><button id="b_source" class="tool">切到感知台</button><button id="b_mirror" class="tool" aria-pressed="false">左右镜像</button></div>
+      <div class="strip" role="group" aria-label="玩家持拍手">
+        <button type="button" class="tool" data-player-hand="left" aria-pressed="false">左手持拍</button>
+        <button type="button" class="tool" data-player-hand="right" aria-pressed="true">右手持拍</button>
+      </div>
+      <div class="strip" style="margin-top:6px;"><button id="b_input" class="tool">键鼠</button><button id="b_source" class="tool">切到感知台</button><button id="b_mirror" class="tool" aria-pressed="false">左右镜像</button></div>
       <div class="strip" style="margin-top:6px;"><button id="b_calib" class="tool">重新标定站姿</button><button id="b_forefit" class="tool">记录正手</button><button id="b_backfit" class="tool">记录反手</button></div>
       <p id="s_fit" role="status"></p>
     </section>
@@ -239,6 +251,7 @@ body.lobby #brand,body.lobby #top,body.lobby #bottom,body.lobby #hint,body.lobby
     </section>
   </div>
 </details>
+<button type="button" id="b_hand" class="ui control" aria-label="当前右手持拍，点击切换为左手"><span id="hand-label">右手持拍</span><span aria-hidden="true">⇄</span></button>
 <div class="ui" id="event-feed"><span id="s_mode">键鼠控制</span><strong id="s_tech">自动接球</strong><small id="s_last">移动到来球附近</small></div>
 <div class="ui panel" id="toast" role="status"></div>
 <p id="hint">WASD 走位 · 到位自动接球</p>
@@ -297,7 +310,7 @@ body.lobby #brand,body.lobby #top,body.lobby #bottom,body.lobby #hint,body.lobby
 </footer>
 <section id="help" hidden class="dialog panel" aria-labelledby="help_title" role="dialog">
   <h2 id="help_title">操作说明</h2>
-  <p>手机左手拖摇杆走位，右手点球技或发球组合。默认自动接球。键鼠用 WASD 或方向键走位，体感用身体走位。来球超出伸拍范围时需要补位。正手侧和反手侧各有接球范围，只有胸前可以用两种动作。</p>
+  <p>手机左下摇杆走位，右下点球技或发球组合。右上可切换自己的持拍手。默认自动接球。键鼠用 WASD 或方向键走位，体感用身体走位。来球超出伸拍范围时需要补位。正手侧和反手侧各有接球范围，只有胸前可以用两种动作。</p>
   <p>体感会识别持拍侧。手停住是挡球，缓慢挥拍是拉球，向下挥是切球，大幅摆臂或快速上抬是扣杀。</p>
   <p>倒计时会自动发不转球。按住空格可叠加 W 上旋、S 下旋、A 左侧旋、D 右侧旋、F 加速，松开空格发球。W 和 S 同按发不转，也能加 F。可以点「发球花样」组合。</p>
   <p>回球也用空格组合。空格挡球，叠加 W 拉球、S 切球、F 扣杀。A 指定反手，D 指定正手。比如空格 + W + A 是反手拉球。辅助开启时可以提前选下一拍。按住空格时，WASD 只用于组合，松开后恢复走位。</p>
@@ -1725,12 +1738,23 @@ body.lobby #brand,body.lobby #top,body.lobby #bottom,body.lobby #hint,body.lobby
     return true;
   };
 
+  function readyPaddle(feet,side) {
+    return [feet.x+side*.18,1.02,feet.z-.34];
+  }
+
   Match.prototype.setPlayerTarget = function (target) { this.playerTarget = target; };
   Match.prototype.setPlayerControl = function (control) {
     if (!control || !this.control || this.control.mode !== control.mode || this.control.hand !== control.hand || this.control.assist !== control.assist) {
       this.stroke = this.strokeRequest = this.returnChoice = null;
       this.assistGuide = null;
       this.assistScan = 0;
+    }
+    if (control && this.control?.hand !== control.hand) {
+      var p = readyPaddle(this.playerStance,control.hand === 'left' ? -1 : 1);
+      this.playerPaddle.p = p;
+      this.playerPaddle.prevP = V.copy3(p);
+      this.playerPaddle.v = [0,0,0];
+      this.playerPaddle.n = [0,0,-1];
     }
     this.control = control;
   };
@@ -2002,7 +2026,7 @@ body.lobby #brand,body.lobby #top,body.lobby #bottom,body.lobby #hint,body.lobby
       }
     }
 
-    var ready = [feet.x + hand * .18, 1.02, feet.z - .34];
+    var ready = readyPaddle(feet,hand);
     var target = { p: ready, n: [0, 0, -1], quality: 1, grip: 1 };
     var swing = this.stroke;
     if (swing?.fallback && !swing.checked) {
@@ -3992,7 +4016,7 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
       mesh.rotation.z = angle || 0;
       grip.add(mesh);
     }
-    function finger(joints,radius) {
+    function finger(name,joints,radius) {
       var curve = new T.CatmullRomCurve3(joints.map(V3));
       var segments = 16, sides = 10, positions = [], triangles = [];
       var axes = curve.computeFrenetFrames(segments,false);
@@ -4014,19 +4038,21 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
       surface.setAttribute('position',new T.Float32BufferAttribute(positions,3));
       surface.setIndex(triangles);
       surface.computeVertexNormals();
-      grip.add(new T.Mesh(surface,skin));
+      var digit = new T.Mesh(surface,skin);
+      digit.name = name;
+      grip.add(digit);
       var tip=joints[joints.length-1];
       cushion(tip,[radius*.42,radius*.40,radius*.41]);
     }
     cushion([-.066,-.116,-.025],[.025,.019,.021],-.21);
     cushion([-.042,-.105,-.022],[.034,.029,.021],-.28);
     cushion([-.033,-.106,.001],[.025,.019,.020],-.38);
-    // 拇指与食指在拍柄前侧捏住拍肩，另外三根贴在拍背。
-    finger([[-.054,-.116,.007],[-.039,-.119,.021],[-.017,-.111,.020],[-.008,-.098,.012]],.0108);
-    finger([[-.045,-.085,-.003],[-.032,-.070,.010],[-.008,-.072,.018],[.013,-.083,.012],[.012,-.096,.004]],.0090);
-    finger([[-.032,-.089,-.027],[-.020,-.071,-.026],[.002,-.058,-.019],[.021,-.054,-.012]],.0088);
-    finger([[-.029,-.103,-.031],[-.014,-.086,-.032],[.003,-.075,-.025],[.019,-.073,-.014]],.0080);
-    finger([[-.033,-.115,-.031],[-.017,-.102,-.032],[-.004,-.092,-.026],[.009,-.089,-.017]],.0068);
+    // 右手的拇指靠拍肩上缘，小指在下缘。左手镜像整只手和腕点。
+    finger('thumb',[[-.059,-.090,-.015],[-.040,-.073,.002],[-.020,-.073,.018],[-.007,-.081,.011]],.0108);
+    finger('index',[[-.044,-.095,.002],[-.030,-.093,.018],[-.006,-.090,.022],[.014,-.091,.014],[.015,-.106,.006]],.0091);
+    finger('middle',[[-.035,-.098,-.027],[-.019,-.082,-.027],[.002,-.068,-.020],[.023,-.064,-.010]],.0088);
+    finger('ring',[[-.034,-.111,-.032],[-.016,-.098,-.031],[.004,-.091,-.024],[.024,-.087,-.013]],.0080);
+    finger('little',[[-.041,-.124,-.030],[-.024,-.115,-.031],[-.007,-.109,-.025],[.008,-.107,-.016]],.0068);
     return grip;
   }
 
@@ -4837,9 +4863,11 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
   var PP = window.PP, K = PP.constants, V = PP.physics, shots = PP.court.PROFILES;
   var $ = function (id) { return document.getElementById(id); };
   var match = new PP.match.Match({ difficulty: 'novice', firstServer: 'player' });
-  var pipe = new PP.pipeline.Pipeline({ match: match });
+  var playerHand = 'right';
+  try { if (localStorage.getItem('pp3d-player-hand') === 'left') playerHand = 'left'; } catch (_) {}
+  var pipe = new PP.pipeline.Pipeline({match:match,part:playerHand});
   var mock = new PP.source.MockSource({ hz: 60 });
-  var input = { mode: 'keyboard', hand: 'right', move: [0, 0], stance: null, assist: true, autoServe:true, servePicking:false };
+  var input = { mode: 'keyboard', hand: playerHand, move: [0, 0], stance: null, assist: true, autoServe:true, servePicking:false };
   var opponents = { wang:'王楚钦', harimoto:'张本智和' }, opponent = 'wang';
   var chordTimer = null, chord = null, serveOptionsOpen = false;
   var chordKeys = new Set(['KeyW', 'KeyS', 'KeyA', 'KeyD', 'KeyF']);
@@ -4854,6 +4882,8 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
   var last = performance.now(), updateAt = 0, frameCount = 0, toastTimer = null, scene;
   var panel = $('settings'), help = $('help');
   var difficulties = Array.from(document.querySelectorAll('[data-diff]'));
+  var handOptions = Array.from(document.querySelectorAll('[data-player-hand]'));
+  var handQuick = $('b_hand');
   var techniqueButtons = Array.from(document.querySelectorAll('[data-stroke]'));
   var movementKeys = {
     KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right',
@@ -4920,7 +4950,31 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
     } catch (_) {}
   }
 
+  function handSwitchAvailable() {
+    return !match.autoServe && !(match.rules.state === 'toss' && match.rules.server === 'player');
+  }
+
+  function refreshHandButtons() {
+    var left = input.hand === 'left';
+    var label = left ? '左手持拍' : '右手持拍';
+    setText('hand-label',label);
+    handQuick.setAttribute('aria-label','当前'+label+'，点击切换为'+(left ? '右手' : '左手'));
+    for (var button of handOptions) button.setAttribute('aria-pressed',button.dataset.playerHand===input.hand);
+  }
+
+  function setHand(hand) {
+    if (hand === input.hand || !handSwitchAvailable()) return;
+    input = Object.assign({},input,{hand:hand,stance:null,move:[0,0]});
+    match.setPlayerControl(input);
+    pipe.setPart(hand);
+    loadFits();
+    clearKeys();
+    try { localStorage.setItem('pp3d-player-hand',hand); } catch (_) {}
+    refreshHandButtons();
+  }
+
   function updateControls() {
+    refreshHandButtons();
     pipe.autoServeGesture = input.mode === 'pose' && usesSensor && !input.assist;
     var keyboard = input.mode === 'keyboard';
     setText('b_input', keyboard ? '键鼠' : '体感');
@@ -5155,13 +5209,10 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
     setText('b_source', usesSensor ? '切到模拟源' : '切到感知台');
     setText('b_live', usesSensor ? '体感标定' : '连接感知台');
   };
-  $('b_hand').onclick = function () {
-    input = Object.assign({}, input, {hand:input.hand === 'left' ? 'right' : 'left'});
-    match.setPlayerControl(input);
-    pipe.setPart(input.hand);
-    loadFits();
-    setText('b_hand', input.hand === 'left' ? '左手持拍' : '右手持拍');
-  };
+  bindTouchButton(handQuick,function () { setHand(input.hand === 'left' ? 'right' : 'left'); });
+  for (var button of handOptions) {
+    bindTouchButton(button,function () { setHand(this.dataset.playerHand); });
+  }
   $('b_calib').onclick = function () { pipe.recalibrate(); toast('站姿标定', '站直并保持自然准备姿势'); };
   $('b_forefit').onclick = function () { capture('forehand'); };
   $('b_backfit').onclick = function () { capture('backhand'); };
@@ -5333,6 +5384,9 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
 
   function present(snapshot, out, events, now) {
     var rules = snapshot.rules;
+    var handLocked = !handSwitchAvailable();
+    handQuick.disabled = handLocked;
+    for (var option of handOptions) option.disabled = handLocked;
     setText('sp', rules.score.player);
     setText('sa', rules.score.ai);
     var serverName = rules.server === 'player' ? '你' : opponents[opponent];
@@ -5410,7 +5464,8 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
     var connection = pipe.status();
     setText('s_link', usesSensor ? connection.connected ? '感知台已连接' : '等待感知台' : '模拟骨骼');
     setText('s_frames', connection.frames + ' / ' + connection.ageMs + ' ms');
-    setText('s_hand', out.hand && out.hand.ok ? '有效点 ' + out.hand.validCount + '/4' : '未识别');
+    setText('s_hand',(input.hand === 'left' ? '左手' : '右手')+
+      (input.mode === 'pose' ? (out.hand?.ok ? ' · 有效点 '+out.hand.validCount+'/4' : ' · 未识别') : ''));
     var stanceReady = input.assist ? out.stanceReady : out.calibrated;
     var stanceProgress = input.assist ? out.stanceProgress : out.calibrationProgress;
     setText('s_cal', stanceReady ? '已就绪' : Math.round(stanceProgress * 100) + '%');

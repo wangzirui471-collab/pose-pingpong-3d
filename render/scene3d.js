@@ -213,7 +213,7 @@
       mesh.rotation.z = angle || 0;
       grip.add(mesh);
     }
-    function finger(joints,radius) {
+    function finger(name,joints,radius) {
       var curve = new T.CatmullRomCurve3(joints.map(V3));
       var segments = 16, sides = 10, positions = [], triangles = [];
       var axes = curve.computeFrenetFrames(segments,false);
@@ -235,19 +235,21 @@
       surface.setAttribute('position',new T.Float32BufferAttribute(positions,3));
       surface.setIndex(triangles);
       surface.computeVertexNormals();
-      grip.add(new T.Mesh(surface,skin));
+      var digit = new T.Mesh(surface,skin);
+      digit.name = name;
+      grip.add(digit);
       var tip=joints[joints.length-1];
       cushion(tip,[radius*.42,radius*.40,radius*.41]);
     }
     cushion([-.066,-.116,-.025],[.025,.019,.021],-.21);
     cushion([-.042,-.105,-.022],[.034,.029,.021],-.28);
     cushion([-.033,-.106,.001],[.025,.019,.020],-.38);
-    // 拇指与食指在拍柄前侧捏住拍肩，另外三根贴在拍背。
-    finger([[-.054,-.116,.007],[-.039,-.119,.021],[-.017,-.111,.020],[-.008,-.098,.012]],.0108);
-    finger([[-.045,-.085,-.003],[-.032,-.070,.010],[-.008,-.072,.018],[.013,-.083,.012],[.012,-.096,.004]],.0090);
-    finger([[-.032,-.089,-.027],[-.020,-.071,-.026],[.002,-.058,-.019],[.021,-.054,-.012]],.0088);
-    finger([[-.029,-.103,-.031],[-.014,-.086,-.032],[.003,-.075,-.025],[.019,-.073,-.014]],.0080);
-    finger([[-.033,-.115,-.031],[-.017,-.102,-.032],[-.004,-.092,-.026],[.009,-.089,-.017]],.0068);
+    // 右手的拇指靠拍肩上缘，小指在下缘。左手镜像整只手和腕点。
+    finger('thumb',[[-.059,-.090,-.015],[-.040,-.073,.002],[-.020,-.073,.018],[-.007,-.081,.011]],.0108);
+    finger('index',[[-.044,-.095,.002],[-.030,-.093,.018],[-.006,-.090,.022],[.014,-.091,.014],[.015,-.106,.006]],.0091);
+    finger('middle',[[-.035,-.098,-.027],[-.019,-.082,-.027],[.002,-.068,-.020],[.023,-.064,-.010]],.0088);
+    finger('ring',[[-.034,-.111,-.032],[-.016,-.098,-.031],[.004,-.091,-.024],[.024,-.087,-.013]],.0080);
+    finger('little',[[-.041,-.124,-.030],[-.024,-.115,-.031],[-.007,-.109,-.025],[.008,-.107,-.016]],.0068);
     return grip;
   }
 
