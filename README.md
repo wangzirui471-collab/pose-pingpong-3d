@@ -7,7 +7,7 @@
 - 电脑用 WASD 走位，用空格组合球技和发球，按 V 切换视角。
 - 支持自动接发球和四档难度。可操控樊振东、马龙，挑战王楚钦、张本智和、奥恰洛夫、孙颖莎。使用感知台时可运行本地桥接，键盘和触屏不需要桥接。
 
-- 测试命令为 **node tests/run.js** 和 **node tests/forehand.js**。安装 Playwright 后可运行 **node tests/first-person-browser.cjs**，检查四种画面尺寸下的第一人称袖口与球场遮挡。
+- 测试命令为 **node tests/run.js**、**node tests/forehand.js** 和 **node tests/athlete-head.js**。安装 Playwright 后可运行 **node tests/first-person-browser.cjs**，检查四种画面尺寸下的第一人称袖口与球场遮挡。
 - 发布静态页可运行 **python tools/build_single.py --output index.html**。静态页面不依赖 API、登录服务或数据库。
 - Three.js 和其许可证位于 vendor。人体模型改编自 MakeHuman CC0 基础网格，球体动力学参考 MIT 许可项目，许可见 third_party。
 

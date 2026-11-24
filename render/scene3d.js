@@ -354,20 +354,25 @@
     pelvis.position.y = .915;
     pelvis.castShadow = true;
     body.add(pelvis);
-    var neck = new T.Mesh(new T.CylinderGeometry(.047,.053,.084,24),skin);
-    neck.scale.set(cfg.neckWidth || 1,stature,cfg.neckWidth || 1);
-    put(neck,[0,1.435*stature,.003]);
-    neck.castShadow = true;
-    body.add(neck);
-
-    var head = new T.Group();
-    put(head,[0,(cfg.headHeight || 1.60)*stature,cfg.headDepth || 0]);
+    var head = new T.Group(), neck;
+    var headHeight = (cfg.headHeight || 1.60)*stature;
+    put(head,[0,headHeight,cfg.headDepth || 0]);
     body.add(head);
     if (cfg.character) {
-      var face = NS.wangModel.buildHead(T, skin, cfg.character);
-      face.scale.multiplyScalar(cfg.headScale || 1);
+      var face = NS.wangModel.buildHead(T,skin,cfg.character);
+      var scale = cfg.headScale || 1;
+      // 把旋转中心落在颈根，转头时下缘一直留在领口里面。
+      var neckPivot = .162*scale;
+      head.position.y -= neckPivot;
+      face.position.y = neckPivot;
+      face.scale.multiplyScalar(scale);
       head.add(face);
     } else {
+      neck = new T.Mesh(new T.CylinderGeometry(.047,.053,.084,24),skin);
+      neck.scale.y = stature;
+      put(neck,[0,1.435*stature,.003]);
+      neck.castShadow = true;
+      body.add(neck);
       var skull = new T.Mesh(new T.SphereGeometry(0.113, 20, 16), skin);
       skull.scale.set(1, 1.13, 0.96); skull.castShadow = true; head.add(skull);
       var cap = new T.Mesh(new T.SphereGeometry(0.116, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.52), hair);
@@ -392,7 +397,7 @@
       upperR: limb(0.049, shirt), foreR: limb(0.040, skin),
       upperL: limb(0.049, shirt), foreL: limb(0.040, skin),
       elbowR: joint(0.043, skin), elbowL: joint(0.043, skin),
-      handR: joint(0.045, skin), handL: joint(0.045, skin),
+      handR: joint(.027,skin), handL: joint(.027,skin),
       shoulderR: joint(0.058, shirt), shoulderL: joint(0.058, shirt),
       thighR: limb(0.070, pants), shinR: limb(0.052, pants),
       thighL: limb(0.070, pants), shinL: limb(0.052, pants),
@@ -545,7 +550,8 @@
       balance[1] += .21*tossLift;
       balance[2] += dir*.07;
     }
-    h.balanceHand.visible = !openHand;
+    h.balanceHand.visible = h.handL.visible = !openHand;
+    h.handR.visible = true;
     for (var i = 0; i < 2; i++) {
       var arm = i === 0 ? 'R' : 'L';
       var pole = i === 0 ? motion.pole : [-side*.19,-.94,-dir*.20];
@@ -555,7 +561,9 @@
       setLimb(h['fore'+arm], ik.elbow, ik.wrist);
       put(h['elbow'+arm], ik.elbow);
       put(h['shoulder'+arm], shoulders[i]);
-      put(h['hand'+arm], ik.wrist);
+      var wristJoint = h['hand'+arm];
+      put(wristJoint,add3(ik.wrist,mul3(norm3(sub3(ik.elbow,ik.wrist)),.009)));
+      wristJoint.scale.setScalar(h.armLength);
       var orientation = i === 0
         ? new T.Vector3(-dir*side*.55,.78,-.17).applyQuaternion(h.racket.quaternion)
         : V3(sub3(ik.wrist,ik.elbow)).normalize();

@@ -129,6 +129,38 @@
     return texture;
   }
 
+  var jerseyIndex;
+
+  function closeCollar(T,positions,index) {
+    var rim = [];
+    var centerX = 0, centerZ = 0;
+    for (var i=0;i<positions.length;i+=3) {
+      if (Math.abs(positions[i+1]-1.427) > .00001) continue;
+      var point = new T.Vector2(positions[i],positions[i+2]);
+      rim.push({point:point,index:i/3});
+      centerX += point.x;
+      centerZ += point.y;
+    }
+    centerX /= rim.length;
+    centerZ /= rim.length;
+    rim.sort(function (a,b) {
+      return Math.atan2(a.point.y-centerZ,a.point.x-centerX)-Math.atan2(b.point.y-centerZ,b.point.x-centerX);
+    });
+    var top = T.ShapeUtils.triangulateShape(rim.map(function (r) { return r.point; }),[]);
+    var result = new Uint16Array(index.length+top.length*3);
+    result.set(index);
+    // 领口内衬复用原网格边缘和球衣材质，转头时不会露出背后的球场。
+    top.forEach(function (triangle,i) {
+      var a=rim[triangle[0]], b=rim[triangle[1]], c=rim[triangle[2]];
+      var winding=(b.point.y-a.point.y)*(c.point.x-a.point.x)-(b.point.x-a.point.x)*(c.point.y-a.point.y);
+      var j=index.length+i*3;
+      result[j] = a.index;
+      result[j+1] = winding > 0 ? b.index : c.index;
+      result[j+2] = winding > 0 ? c.index : b.index;
+    });
+    return result;
+  }
+
   function build(T,root,skin,jersey,shorts,shoe,facing,style) {
     var asset = G.PP_ATHLETE_MESH;
     var meshGeometry = new T.BufferGeometry();
@@ -136,7 +168,8 @@
     meshGeometry.setAttribute('position',new T.BufferAttribute(positions,3));
     meshGeometry.setAttribute('skinIndex', new T.BufferAttribute(decode(asset.joints, Uint8Array), 4));
     meshGeometry.setAttribute('skinWeight', new T.BufferAttribute(decode(asset.weights, Uint8Array), 4, true));
-    meshGeometry.setIndex(new T.BufferAttribute(decode(asset.index, Uint16Array), 1));
+    if (!jerseyIndex) jerseyIndex = closeCollar(T,positions,decode(asset.index,Uint16Array));
+    meshGeometry.setIndex(new T.BufferAttribute(jerseyIndex,1));
     var fabric = decode(asset.shade, Uint8Array);
     var regions = decode(asset.regions,Uint8Array);
     var garment = Uint8Array.from(regions,function (region) { return region===1 ? 255 : 0; });
