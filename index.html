@@ -74,8 +74,16 @@ button:hover,.menu-label:hover { background:#403139; }
 #b_serve {background:var(--accent);color:#221710;font-weight:850;border-color:transparent;}.control#b_serve kbd {color:#5d362b;}
 #hint {position:fixed;left:var(--edge);bottom:80px;margin:0;font-size:11px;color:var(--muted);pointer-events:none;}
 #target-label {position:fixed;right:var(--edge);bottom:78px;font-size:11px;color:var(--muted);pointer-events:none;}
-#toast {left:50%; top:23%; transform:translate(-50%,-8px); border-radius:11px; text-align:center; padding:10px 18px; opacity:0; transition:opacity .15s,transform .15s; pointer-events:none; min-width:150px; }
+#toast {left:50%; top:128px; transform:translate(-50%,-8px); border-radius:11px; text-align:center; padding:10px 18px; opacity:0; transition:opacity .15s,transform .15s; pointer-events:none; min-width:150px; }
 #toast.show {opacity:1;transform:translate(-50%,0);}.toast-body {display:block;color:var(--muted);margin-top:4px;font-size:11px;}
+@media(max-width:600px) { #toast {top:93px;} }
+@media(pointer:coarse) and (min-width:601px) and (max-height:480px) {
+  #toast {
+    top:72px;left:max(12px,env(safe-area-inset-left));min-width:0;width:min(200px,29vw);
+    transform:translateY(-8px);
+  }
+  #toast.show {transform:translateY(0);}
+}
 #touch-controls {display:none;}
 #touch-controls button {touch-action:manipulation;}
 @media (pointer:coarse) {
@@ -171,7 +179,7 @@ body.lobby #brand,body.lobby #top,body.lobby #bottom,body.lobby #hint,body.lobby
 #serve-tray .stroke {border-color:#f2c78f61; background:#34242af5; color:#fff1de; min-width:68px;}
 #serve-options {flex-wrap:wrap;}
 #serve-tray [data-serve-key][aria-pressed=true],
-#serve-tray .quick-serve {background:var(--accent); color:#251916;}
+#serve-tray .quick-serve {background:var(--accent);color:#251916;flex:0 1 auto;}
 #serve-tray [data-serve-key][aria-pressed=true] kbd {color:#644133;}
 #serve-tray .quick-serve kbd {color:#644133;}
 #serve-tray button:hover {background:#663b40;}
@@ -3688,26 +3696,13 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
     meshGeometry.setAttribute('color', new T.BufferAttribute(colors, 3, true));
     if (facing < 0) meshGeometry.rotateY(Math.PI);
     meshGeometry.computeVertexNormals();
-    meshGeometry.morphTargetsRelative = true;
-    meshGeometry.morphAttributes.position = asset.grips.map(function (sparse) {
-      var deltas = new Float32Array(meshGeometry.attributes.position.count * 3);
-      var ids = decode(sparse.index,Uint16Array), offsets = decode(sparse.delta,Float32Array);
-      for (var i=0;i<ids.length;i++) {
-        var at=ids[i]*3;
-        deltas[at]=offsets[i*3]*facing;
-        deltas[at+1]=offsets[i*3+1];
-        deltas[at+2]=offsets[i*3+2]*facing;
-      }
-      return new T.BufferAttribute(deltas,3);
-    });
     var materials = new T.MeshStandardMaterial({
-      color:0xffffff, vertexColors:true, skinning:true, morphTargets:true, roughness:.87
+      color:0xffffff, vertexColors:true, skinning:true, roughness:.87
     });
     var holdingBone = {value:-1};
     var jerseyMap = jerseyAtlas(T,style.character);
-    materials.customProgramCacheKey = function () { return facing<0 ? 'athlete-jersey-penhold' : 'athlete-jersey'; };
+    materials.customProgramCacheKey = function () { return 'athlete-jersey-grip'; };
     materials.onBeforeCompile = function (shader) {
-      shader.uniforms.gripBone = holdingBone;
       shader.uniforms.jerseyMap = {value:jerseyMap};
       shader.uniforms.athleteFacing = {value:facing};
       shader.vertexShader = 'attribute float jerseyZone; uniform float athleteFacing; ' +
@@ -3722,19 +3717,23 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
         'vec3 frontKit = sRGBToLinear(texture2D(jerseyMap,vec2(kitUV.x*.5,kitUV.y))).rgb;\n' +
         'vec3 backKit = sRGBToLinear(texture2D(jerseyMap,vec2(.5+kitUV.x*.5,kitUV.y))).rgb;\n' +
         'diffuseColor.rgb = mix(diffuseColor.rgb,mix(frontKit,backKit,rear),jerseyWeight*.91);');
-      if (facing<0) {
-        // 只隐藏原持拍手片段，保留腕部连接。
-        shader.vertexShader = 'uniform float gripBone; varying float gripMask;\n'+shader.vertexShader;
-        shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>',
-          '#include <begin_vertex>\nvec4 held = 1.0 - step(vec4(.1),abs(skinIndex-vec4(gripBone)));\n' +
-          'gripMask = dot(skinWeight,held);');
-        shader.fragmentShader = 'varying float gripMask;\n'+shader.fragmentShader;
-        shader.fragmentShader = shader.fragmentShader.replace('#include <clipping_planes_fragment>',
-          '#include <clipping_planes_fragment>\nif(gripMask > 0.64) discard;');
-      }
+      clipHoldingHand(shader);
     };
+    function clipHoldingHand(shader) {
+      shader.uniforms.gripBone = holdingBone;
+      // 同一处裁掉原持拍手的蒙皮与阴影，保留腕部连接。
+      shader.vertexShader = 'uniform float gripBone; varying float gripMask;\n'+shader.vertexShader;
+      shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>',
+        '#include <begin_vertex>\nvec4 held = 1.0 - step(vec4(.1),abs(skinIndex-vec4(gripBone)));\n' +
+        'gripMask = dot(skinWeight,held);');
+      shader.fragmentShader = 'varying float gripMask;\n'+shader.fragmentShader;
+      shader.fragmentShader = shader.fragmentShader.replace('#include <clipping_planes_fragment>',
+        '#include <clipping_planes_fragment>\nif(gripMask > 0.64) discard;');
+    }
     var mesh = new T.SkinnedMesh(meshGeometry, materials);
     mesh.name = 'anatomical-athlete';
+    mesh.customDepthMaterial = new T.MeshDepthMaterial({depthPacking:T.RGBADepthPacking,skinning:true});
+    mesh.customDepthMaterial.onBeforeCompile = clipHoldingHand;
     mesh.frustumCulled = false;
     mesh.castShadow = mesh.receiveShadow = true;
     root.add(mesh);
@@ -3771,11 +3770,7 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
 
     return {
       grip: function (side) {
-        var index = sideIndex(side);
-        var dominant = index===1 ? 0 : 1;
-        holdingBone.value = index+2;
-        mesh.morphTargetInfluences[dominant]=facing<0 ? 0 : 1;
-        mesh.morphTargetInfluences[1-dominant]=0;
+        holdingBone.value = sideIndex(side)+2;
       },
       torso: function (body) {
         var segment = segments[0];
@@ -4006,11 +4001,12 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
     g.lookAt(wp.x + n[0], wp.y + n[1], wp.z + n[2]);
   }
 
-  function buildPenhold(skin) {
+  function buildGrip(skin,penhold) {
     var grip = new T.Group();
-    grip.name = 'penhold-grip';
-    function cushion(p,r,angle) {
+    grip.name = penhold ? 'penhold-grip' : 'shakehand-grip';
+    function cushion(name,p,r,angle) {
       var mesh = new T.Mesh(new T.SphereGeometry(1,20,14),skin);
+      mesh.name = name;
       put(mesh,p);
       mesh.scale.set(r[0],r[1],r[2]);
       mesh.rotation.z = angle || 0;
@@ -4042,17 +4038,29 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
       digit.name = name;
       grip.add(digit);
       var tip=joints[joints.length-1];
-      cushion(tip,[radius*.42,radius*.40,radius*.41]);
+      cushion(name+'-tip',tip,[radius*.42,radius*.40,radius*.41]);
     }
-    cushion([-.066,-.116,-.025],[.025,.019,.021],-.21);
-    cushion([-.042,-.105,-.022],[.034,.029,.021],-.28);
-    cushion([-.033,-.106,.001],[.025,.019,.020],-.38);
-    // 右手的拇指靠拍肩上缘，小指在下缘。左手镜像整只手和腕点。
-    finger('thumb',[[-.059,-.090,-.015],[-.040,-.073,.002],[-.020,-.073,.018],[-.007,-.081,.011]],.0108);
-    finger('index',[[-.044,-.095,.002],[-.030,-.093,.018],[-.006,-.090,.022],[.014,-.091,.014],[.015,-.106,.006]],.0091);
-    finger('middle',[[-.035,-.098,-.027],[-.019,-.082,-.027],[.002,-.068,-.020],[.023,-.064,-.010]],.0088);
-    finger('ring',[[-.034,-.111,-.032],[-.016,-.098,-.031],[.004,-.091,-.024],[.024,-.087,-.013]],.0080);
-    finger('little',[[-.041,-.124,-.030],[-.024,-.115,-.031],[-.007,-.109,-.025],[.008,-.107,-.016]],.0068);
+    if (penhold) {
+      cushion('wrist-pad',[-.066,-.116,-.025],[.025,.019,.021],-.21);
+      cushion('palm',[-.046,-.105,-.023],[.027,.027,.020],-.28);
+      cushion('thumb-pad',[-.039,-.096,.001],[.017,.018,.019],-.31);
+      // 拇指和食指绕过拍肩再捏柄，后三指贴在背面。
+      finger('thumb',[[-.057,-.097,-.012],[-.046,-.089,.004],[-.027,-.075,.020],[-.009,-.078,.017]],.0101);
+      finger('index',[[-.043,-.095,.003],[-.029,-.094,.020],[-.006,-.092,.023],[.020,-.096,.018],[.022,-.109,.009]],.0088);
+      finger('middle',[[-.035,-.097,-.027],[-.019,-.081,-.025],[.004,-.066,-.018],[.024,-.060,-.010]],.0084);
+      finger('ring',[[-.034,-.111,-.031],[-.016,-.097,-.030],[.004,-.088,-.025],[.026,-.085,-.015]],.0077);
+      finger('little',[[-.041,-.124,-.030],[-.024,-.115,-.030],[-.007,-.109,-.026],[.009,-.109,-.018]],.0068);
+    } else {
+      cushion('wrist-pad',[-.057,-.145,-.012],[.023,.019,.020],-.12);
+      cushion('palm',[-.036,-.130,-.010],[.019,.032,.022],-.12);
+      cushion('thumb-pad',[-.032,-.112,.009],[.014,.021,.013],-.30);
+      // 横板食指沿背面，其他三指分开绕过拍柄。
+      finger('thumb',[[-.042,-.122,.012],[-.025,-.102,.021],[-.014,-.084,.020],[-.007,-.074,.016]],.0090);
+      finger('index',[[-.038,-.115,-.025],[-.018,-.092,-.022],[.009,-.076,-.019],[.035,-.058,-.011]],.0078);
+      finger('middle',[[-.029,-.115,.019],[-.009,-.116,.022],[.019,-.119,.020],[.025,-.120,.004],[.022,-.122,-.014]],.0084);
+      finger('ring',[[-.032,-.131,.017],[-.010,-.133,.023],[.018,-.135,.020],[.025,-.137,.006],[.022,-.139,-.012]],.0078);
+      finger('little',[[-.032,-.145,.014],[-.010,-.151,.022],[.017,-.153,.018],[.024,-.154,.005],[.023,-.156,-.014]],.0070);
+    }
     return grip;
   }
 
@@ -4169,10 +4177,9 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
     ['foreR','foreL','elbowR','elbowL','handR','handL','shoulderR','shoulderL',
      'kneeR','kneeL','shoeR','shoeL'].forEach(function (k) { parts[k].castShadow = false; });
 
-    if (facing === -1) {
-      parts.penhold = buildPenhold(skin);
-      parts.racket.add(parts.penhold);
-    }
+    parts.grip = buildGrip(skin,facing===-1);
+    if (facing===-1) parts.penhold = parts.grip;
+    parts.racket.add(parts.grip);
     parts.rig = NS.athleteRig.build(T,root,skin,shirt,pants,shoe,facing,cfg);
     parts.torso.visible = parts.pelvis.visible = false;
     for (var part of limbs.children) if (part !== parts.racket) part.visible = false;
@@ -4279,7 +4286,8 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
     } else {
       aimRacket(h.racket,o.normal);
       if (stroke) h.racket.rotateZ(wing*(stroke.side === 'backhand' ? .26 : -.20)*brace);
-      hand = arr(new T.Vector3(0,-.115,0).applyQuaternion(h.racket.quaternion).add(h.racket.position));
+      h.grip.scale.x = -side;
+      hand = arr(new T.Vector3(.069*side,-.145,-.012).applyQuaternion(h.racket.quaternion).add(h.racket.position));
     }
     // 肩关节与球衣一起转动。
     var shoulders = [side,-side].map(function (armSide) {
@@ -4303,6 +4311,7 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
       var arm = i === 0 ? 'R' : 'L';
       var pole = i === 0 && stroke?.side === 'backhand' ? [side*.15, -.93, -dir*.10] : [(i === 0 ? side : -side)*.64, -.72, dir*.12];
       var ik = solveIK(shoulders[i], i === 0 ? hand : balance, h.L1, h.L2, pole);
+      if (i === 0 && !ik.reachable) h.racket.position.add(V3(sub3(ik.wrist,hand)));
       setLimb(h['upper'+arm], shoulders[i], ik.elbow);
       setLimb(h['fore'+arm], ik.elbow, ik.wrist);
       put(h['elbow'+arm], ik.elbow);
@@ -4540,7 +4549,7 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
     var forearm = new T.Mesh(new T.LatheGeometry(section.map(function (row) {
       return new T.Vector2(row[0],row[1]);
     }),26),skin);
-    var racket = buildRacket(true), hand = buildPenhold(skin);
+    var racket = buildRacket(true), hand = buildGrip(skin,true);
     racket.add(hand);
     this.armGroup = new T.Group();
     this.arm = {upper:limb(.041,sleeve,20),fore:forearm,hand:hand,racket:racket};

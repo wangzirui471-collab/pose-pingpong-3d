@@ -130,26 +130,13 @@
     meshGeometry.setAttribute('color', new T.BufferAttribute(colors, 3, true));
     if (facing < 0) meshGeometry.rotateY(Math.PI);
     meshGeometry.computeVertexNormals();
-    meshGeometry.morphTargetsRelative = true;
-    meshGeometry.morphAttributes.position = asset.grips.map(function (sparse) {
-      var deltas = new Float32Array(meshGeometry.attributes.position.count * 3);
-      var ids = decode(sparse.index,Uint16Array), offsets = decode(sparse.delta,Float32Array);
-      for (var i=0;i<ids.length;i++) {
-        var at=ids[i]*3;
-        deltas[at]=offsets[i*3]*facing;
-        deltas[at+1]=offsets[i*3+1];
-        deltas[at+2]=offsets[i*3+2]*facing;
-      }
-      return new T.BufferAttribute(deltas,3);
-    });
     var materials = new T.MeshStandardMaterial({
-      color:0xffffff, vertexColors:true, skinning:true, morphTargets:true, roughness:.87
+      color:0xffffff, vertexColors:true, skinning:true, roughness:.87
     });
     var holdingBone = {value:-1};
     var jerseyMap = jerseyAtlas(T,style.character);
-    materials.customProgramCacheKey = function () { return facing<0 ? 'athlete-jersey-penhold' : 'athlete-jersey'; };
+    materials.customProgramCacheKey = function () { return 'athlete-jersey-grip'; };
     materials.onBeforeCompile = function (shader) {
-      shader.uniforms.gripBone = holdingBone;
       shader.uniforms.jerseyMap = {value:jerseyMap};
       shader.uniforms.athleteFacing = {value:facing};
       shader.vertexShader = 'attribute float jerseyZone; uniform float athleteFacing; ' +
@@ -164,19 +151,23 @@
         'vec3 frontKit = sRGBToLinear(texture2D(jerseyMap,vec2(kitUV.x*.5,kitUV.y))).rgb;\n' +
         'vec3 backKit = sRGBToLinear(texture2D(jerseyMap,vec2(.5+kitUV.x*.5,kitUV.y))).rgb;\n' +
         'diffuseColor.rgb = mix(diffuseColor.rgb,mix(frontKit,backKit,rear),jerseyWeight*.91);');
-      if (facing<0) {
-        // 只隐藏原持拍手片段，保留腕部连接。
-        shader.vertexShader = 'uniform float gripBone; varying float gripMask;\n'+shader.vertexShader;
-        shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>',
-          '#include <begin_vertex>\nvec4 held = 1.0 - step(vec4(.1),abs(skinIndex-vec4(gripBone)));\n' +
-          'gripMask = dot(skinWeight,held);');
-        shader.fragmentShader = 'varying float gripMask;\n'+shader.fragmentShader;
-        shader.fragmentShader = shader.fragmentShader.replace('#include <clipping_planes_fragment>',
-          '#include <clipping_planes_fragment>\nif(gripMask > 0.64) discard;');
-      }
+      clipHoldingHand(shader);
     };
+    function clipHoldingHand(shader) {
+      shader.uniforms.gripBone = holdingBone;
+      // 同一处裁掉原持拍手的蒙皮与阴影，保留腕部连接。
+      shader.vertexShader = 'uniform float gripBone; varying float gripMask;\n'+shader.vertexShader;
+      shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>',
+        '#include <begin_vertex>\nvec4 held = 1.0 - step(vec4(.1),abs(skinIndex-vec4(gripBone)));\n' +
+        'gripMask = dot(skinWeight,held);');
+      shader.fragmentShader = 'varying float gripMask;\n'+shader.fragmentShader;
+      shader.fragmentShader = shader.fragmentShader.replace('#include <clipping_planes_fragment>',
+        '#include <clipping_planes_fragment>\nif(gripMask > 0.64) discard;');
+    }
     var mesh = new T.SkinnedMesh(meshGeometry, materials);
     mesh.name = 'anatomical-athlete';
+    mesh.customDepthMaterial = new T.MeshDepthMaterial({depthPacking:T.RGBADepthPacking,skinning:true});
+    mesh.customDepthMaterial.onBeforeCompile = clipHoldingHand;
     mesh.frustumCulled = false;
     mesh.castShadow = mesh.receiveShadow = true;
     root.add(mesh);
@@ -213,11 +204,7 @@
 
     return {
       grip: function (side) {
-        var index = sideIndex(side);
-        var dominant = index===1 ? 0 : 1;
-        holdingBone.value = index+2;
-        mesh.morphTargetInfluences[dominant]=facing<0 ? 0 : 1;
-        mesh.morphTargetInfluences[1-dominant]=0;
+        holdingBone.value = sideIndex(side)+2;
       },
       torso: function (body) {
         var segment = segments[0];
