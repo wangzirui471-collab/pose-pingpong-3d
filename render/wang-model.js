@@ -4,54 +4,54 @@
 
   var appearance = {
     wang: {
-      center:.537, eyeSpacing:.137, tint: 0xd5a68c,
-      width:1.006, jaw:.928, height:1.034, cheek:.0046, nose:.0041,
+      center:.523, eyeSpacing:.116, tint: 0xd5a68c,
+      width:1.006, jaw:.940, height:1.030, cheek:.0052, nose:.0037,
       temple: .99, chin:.0027, brow:-.0024, smile:.0010, ear:.93,
       bridge:.0019, back:.0018, lowerFace:.0013, chinWidth:.97, lipClosure:.66,
-      scanY:[.998,.923,.830,.730,.624,.474,.418,.297,.022],
+      scanY:[.998,.916,.847,.751,.638,.514,.459,.331,.047],
       hair:{width:.096,height:.108,depth:.114,edge:1.19,side:1.67,nape:.20,part:.18,sweep:.24,volume:.0064,fringe:.035}
     },
     harimoto: {
-      center:.520, eyeSpacing:.136, tint: 0xce987e,
-      width:1.053, jaw:1.058, height:.985, cheek:.0072, nose:-.0031,
+      center:.502, eyeSpacing:.117, tint: 0xce987e,
+      width:1.053, jaw:1.045, height:.982, cheek:.0083, nose:-.0031,
       temple:1.04, chin:-.0012, brow:-.002, smile:.0031, ear:.98,
       bridge:.0015, back:.0025, lowerFace:-.0012, chinWidth:.98, lipClosure:.63,
-      scanY:[.998,.912,.836,.724,.628,.479,.420,.308,.050],
+      scanY:[.998,.917,.846,.729,.631,.493,.443,.327,.051],
       hair:{width:.097,height:.107,depth:.117,edge:1.31,side:1.74,nape:.19,part:.033,sweep:-.40,volume:.0061,fringe:.038}
     },
     fan: {
-      center:.546, eyeSpacing:.138, tint: 0xc99e83,
-      width:1.069, jaw:1.133, height:.951, cheek:.0078, nose:-.0035,
+      center:.515, eyeSpacing:.129, tint: 0xc99e83,
+      width:1.079, jaw:1.115, height:.946, cheek:.0087, nose:-.0035,
       temple:1.07, chin:.0026, brow:.0013, smile:.0016, ear:.95,
       bridge:.0014, back:-.0018, lowerFace:.0021, chinWidth:1.012, lipClosure:.65,
-      scanY:[.998,.896,.817,.711,.621,.470,.408,.308,.034],
+      scanY:[.998,.904,.835,.732,.627,.489,.437,.321,.047],
       hair:{width:.091,height:.102,depth:.109,edge:.89,side:1.46,nape:.11,part:.10,sweep:.72,volume:.0062,lift:.0052}
     },
     // 正面近景定位五官，侧面及转身镜头校对鼻梁、后脑和发际线。
     ovtcharov: {
-      center:.501, eyeSpacing:.092, tint:0xc19a85,
-      width:.989, jaw:1.002, height:1.063, cheek:.0016, nose:.0070,
+      center:.492, eyeSpacing:.097, tint:0xc19a85,
+      width:.990, jaw:1.017, height:1.057, cheek:.0018, nose:.0064,
       temple:1.015, chin:.0038, brow:.0007, smile:.0004, ear:.94,
-      bridge:.0044, back:.0032, lowerFace:.0042, chinWidth:1.03, blinkOffset:.36, edgeMask:true, lipClosure:.57,
-      scanY:[.998,.929,.856,.688,.599,.455,.409,.319,.019],
+      bridge:.0044, back:.0032, lowerFace:.0042, chinWidth:1.03, blinkOffset:.36, lipClosure:.57,
+      scanY:[.998,.922,.854,.690,.605,.457,.409,.319,.025],
       hair:{width:.093,height:.108,depth:.110,edge:.90,side:1.38,nape:.12,part:.09,sweep:-.69,
         volume:.0090,lift:.0094,fringe:.045,red:.0260,green:.0190,blue:.0150}
     },
     sun: {
-      center:.501, eyeSpacing:.108, tint:0xd4a48c,
-      width:.998, jaw:.974, height:.929, cheek:.0095, nose:-.0084,
+      center:.505, eyeSpacing:.111, tint:0xd4a48c,
+      width:1.018, jaw:.920, height:.938, cheek:.0108, nose:-.0061,
       temple:1.016, chin:-.0016, brow:-.0048, smile:.0012, ear:.89,
-      bridge:-.0042, back:.0018, lowerFace:-.0040, chinWidth:.94, blinkOffset:2.04, edgeMask:true, lipClosure:.46,
-      scanY:[.998,.942,.884,.746,.664,.498,.433,.365,.016],
-      hair:{width:.092,height:.106,depth:.111,edge:1.29,side:1.64,nape:.105,part:.046,sweep:.16,
-        volume:.0054,lift:.0044,fringe:.054,red:.0125,green:.0114,blue:.0111}
+      bridge:-.0042, back:.0018, lowerFace:-.0040, chinWidth:.94, blinkOffset:2.04, lipClosure:.59, neckWidth:.83,
+      scanY:[.998,.914,.850,.750,.644,.504,.448,.342,.037],
+      hair:{width:.092,height:.106,depth:.111,edge:1.29,side:1.64,nape:.136,part:.023,sweep:.18,
+        volume:.0054,lift:.0044,fringe:.030,red:.0146,green:.0114,blue:.0111}
     },
     ma: {
-      center:.512, eyeSpacing:.111, tint:0xcda289,
-      width:.966, jaw:.975, height:1.023, cheek:.0037, nose:.0048,
+      center:.506, eyeSpacing:.118, tint:0xcda289,
+      width:.973, jaw:.956, height:1.023, cheek:.0046, nose:.0041,
       temple:1.006, chin:.0022, brow:-.0021, smile:.0012, ear:1.00,
-      bridge:.0018, back:-.0018, lowerFace:.0020, chinWidth:.98, blinkOffset:3.52, edgeMask:true, lipClosure:.59,
-      scanY:[.998,.970,.911,.750,.643,.484,.412,.319,.021],
+      bridge:.0018, back:-.0018, lowerFace:.0020, chinWidth:.98, blinkOffset:3.52, lipClosure:.59,
+      scanY:[.998,.929,.870,.751,.635,.483,.435,.319,.032],
       hair:{width:.091,height:.104,depth:.107,edge:1.04,side:1.44,nape:.12,part:.07,sweep:.57,
         volume:.0061,lift:.0052,fringe:.055,red:.0148,green:.0128,blue:.0117}
     }
@@ -101,7 +101,9 @@
       var rear = (1-T.MathUtils.smoothstep(z,-.055,.012))*Math.exp(-(((y+.012)/.078)**2));
       var lowerFace = Math.exp(-(((y+.129)/.038)**2))*front;
       var chinShape = 1+((profile.chinWidth ?? 1)-1)*lowerChin*front;
-      pos[i] = x*(1+(shape-1)*neck)*(1+(profile.ear-1)*outerEar)*(1-.22*neckBase)*chinShape;
+      var neckWidth = profile.neckWidth ?? 1;
+      var neckTaper = 1-(1-neckWidth)*(1-T.MathUtils.smoothstep(y,-.151,-.112));
+      pos[i] = x*(1+(shape-1)*neck)*(1+(profile.ear-1)*outerEar)*(1-.22*neckBase)*chinShape*neckTaper;
       pos[i+1] = y+(y+.037)*(profile.height-1)*neck-closeLips+corners-(profile.lowerFace ?? 0)*lowerFace;
       pos[i+2] = z+(profile.nose*nose+profile.cheek*cheeks+profile.chin*lowerChin+
         profile.brow*brow+(profile.bridge ?? 0)*bridge)*front-.0026*lips-(profile.back ?? 0)*rear;
@@ -241,11 +243,11 @@
       var mix = hair
         ? 'float front = smoothstep(0.028, 0.095, vAthletePoint.z);\n' +
           'float dark = 1.0 - smoothstep(0.064, 0.149, scan.r);\n' +
-          'float trim = front * smoothstep(0.79, 0.99, vHairRing);\n' +
-          'diffuseColor.a *= 1.0 - trim * smoothstep(0.11, 0.29, scan.r);\n' +
-          'diffuseColor.rgb = mix(diffuseColor.rgb, scan, front * dark * 0.88);'
-        : 'float frontal = smoothstep(0.040, 0.103, vAthletePoint.z);\n' +
-          'float cheeks = 1.0 - smoothstep(0.058, 0.093, abs(vAthletePoint.x));\n' +
+          'float trim = front * smoothstep(0.89, 1.0, vHairRing);\n' +
+          'diffuseColor.a *= 1.0 - trim * smoothstep(0.18, 0.38, scan.r)*0.60;\n' +
+          'diffuseColor.rgb = mix(diffuseColor.rgb, scan, front * dark * 0.61);'
+        : 'float frontal = smoothstep(0.026, 0.090, vAthletePoint.z);\n' +
+          'float cheeks = 1.0 - smoothstep(0.049, 0.088, abs(vAthletePoint.x));\n' +
           'float neckJoin = smoothstep(-0.173, -0.144, vAthletePoint.y);\n' +
           'diffuseColor.rgb = mix(athleteNeck, diffuseColor.rgb, neckJoin);\n' +
           'diffuseColor.rgb = mix(diffuseColor.rgb, scan, frontal * cheeks * neckJoin * 0.98' +
@@ -271,10 +273,12 @@
     var asset = prepared[id];
     var faceMat = skin.clone();
     faceMat.color.setHex(profile.tint).convertSRGBToLinear();
-    faceMat.roughness = .93;
+    faceMat.roughness = .96;
+    faceMat.emissive.copy(faceMat.color);
+    faceMat.emissiveIntensity = .055;
     faceMat.metalness = 0;
     var lids = {value:0};
-    projectFace(faceMat, asset.texture, skin.color, false, lids, profile.edgeMask ? profile.center : undefined);
+    projectFace(faceMat, asset.texture, skin.color, false, lids, profile.center);
     var hairMat = new T.MeshStandardMaterial({ vertexColors: true, roughness: .82, side: T.DoubleSide, alphaTest: .48 });
     projectFace(hairMat, asset.texture, skin.color, true);
 

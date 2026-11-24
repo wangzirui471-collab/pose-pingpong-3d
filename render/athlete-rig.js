@@ -197,34 +197,42 @@
     var materials = new T.MeshStandardMaterial({
       color:0xffffff, vertexColors:true, skinning:true, roughness:.87
     });
-    var holdingBone = {value:-1};
+    var holdingBone = {value:-1}, balanceBone = {value:-1};
     var jerseyMap = jerseyAtlas(T,style.character);
+    var sleeveAccent = {value:new T.Color(style.sleeveColor || 0).convertSRGBToLinear()};
     materials.customProgramCacheKey = function () { return 'athlete-jersey-grip'; };
     materials.onBeforeCompile = function (shader) {
       shader.uniforms.jerseyMap = {value:jerseyMap};
+      shader.uniforms.sleeveAccent = sleeveAccent;
+      shader.uniforms.sleeveCoverage = {value:style.sleeveColor ? .82 : 0};
       shader.uniforms.athleteFacing = {value:facing};
       shader.uniforms.athleteStature = {value:stature};
       shader.vertexShader = 'attribute float jerseyZone; uniform float athleteFacing; uniform float athleteStature; ' +
         'varying vec3 jerseyPoint; varying float jerseyWeight;\n'+shader.vertexShader;
       shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>',
         '#include <begin_vertex>\njerseyPoint = position*vec3(athleteFacing,1.0/athleteStature,athleteFacing);\njerseyWeight = jerseyZone;');
-      shader.fragmentShader = 'uniform sampler2D jerseyMap; varying vec3 jerseyPoint; varying float jerseyWeight;\n'+shader.fragmentShader;
+      shader.fragmentShader = 'uniform sampler2D jerseyMap; uniform vec3 sleeveAccent; uniform float sleeveCoverage; '+
+        'varying vec3 jerseyPoint; varying float jerseyWeight;\n'+shader.fragmentShader;
       shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>',
         '#include <color_fragment>\n' +
         'vec2 kitUV = clamp(vec2(jerseyPoint.x/.60+.5, 1.0-(1.45-jerseyPoint.y)/.56),.003,.997);\n' +
         'float rear = 1.0-smoothstep(-.035,.035,jerseyPoint.z);\n' +
         'vec3 frontKit = sRGBToLinear(texture2D(jerseyMap,vec2(kitUV.x*.5,kitUV.y))).rgb;\n' +
         'vec3 backKit = sRGBToLinear(texture2D(jerseyMap,vec2(.5+kitUV.x*.5,kitUV.y))).rgb;\n' +
-        'diffuseColor.rgb = mix(diffuseColor.rgb,mix(frontKit,backKit,rear),jerseyWeight*.91);');
+        'diffuseColor.rgb = mix(diffuseColor.rgb,mix(frontKit,backKit,rear),jerseyWeight*.91);\n' +
+        'float sleeve = smoothstep(.169,.253,abs(jerseyPoint.x))*jerseyWeight;\n' +
+        'diffuseColor.rgb = mix(diffuseColor.rgb,sleeveAccent,sleeve*sleeveCoverage);');
       clipHoldingHand(shader);
     };
     function clipHoldingHand(shader) {
       shader.uniforms.gripBone = holdingBone;
-      // 同一处裁掉原持拍手的蒙皮与阴影，保留腕部连接。
-      shader.vertexShader = 'uniform float gripBone; varying float gripMask;\n'+shader.vertexShader;
+      shader.uniforms.balanceBone = balanceBone;
+      // 两只独立手模都在对应腕点接入，抛球时空闲手保留张开的蒙皮。
+      shader.vertexShader = 'uniform float gripBone; uniform float balanceBone; varying float gripMask;\n'+shader.vertexShader;
       shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>',
         '#include <begin_vertex>\nvec4 held = 1.0 - step(vec4(.1),abs(skinIndex-vec4(gripBone)));\n' +
-        'gripMask = dot(skinWeight,held);');
+        'vec4 relaxed = 1.0 - step(vec4(.1),abs(skinIndex-vec4(balanceBone)));\n' +
+        'gripMask = dot(skinWeight,max(held,relaxed));');
       shader.fragmentShader = 'varying float gripMask;\n'+shader.fragmentShader;
       shader.fragmentShader = shader.fragmentShader.replace('#include <clipping_planes_fragment>',
         '#include <clipping_planes_fragment>\nif(gripMask > 0.64) discard;');
@@ -272,8 +280,9 @@
     }
 
     return {
-      grip: function (side) {
+      grip: function (side,relaxed) {
         holdingBone.value = sideIndex(side)+2;
+        balanceBone.value = relaxed ? sideIndex(-side)+2 : -1;
       },
       torso: function (body) {
         var segment = segments[0];

@@ -203,9 +203,9 @@
     g.lookAt(wp.x + n[0], wp.y + n[1], wp.z + n[2]);
   }
 
-  function buildGrip(skin,penhold) {
+  function buildGrip(skin,penhold,relaxed) {
     var grip = new T.Group();
-    grip.name = penhold ? 'penhold-grip' : 'shakehand-grip';
+    grip.name = relaxed ? 'balance-hand' : penhold ? 'penhold-grip' : 'shakehand-grip';
     function cushion(name,p,r,angle) {
       var mesh = new T.Mesh(new T.SphereGeometry(1,20,14),skin);
       mesh.name = name;
@@ -242,7 +242,22 @@
       var tip=joints[joints.length-1];
       cushion(name+'-tip',tip,[radius*.42,radius*.40,radius*.41]);
     }
-    if (penhold) {
+    if (relaxed) {
+      cushion('wrist-pad',[0,.004,0],[.023,.019,.017]);
+      cushion('palm',[0,.038,0],[.035,.044,.017]);
+      finger('thumb',[[.024,.023,-.002],[.039,.038,.009],[.036,.056,.022],[.021,.066,.025]],.011);
+      var fingers = [
+        ['index',.023,.112,.010],
+        ['middle',.007,.121,.010],
+        ['ring',-.010,.117,.009],
+        ['little',-.024,.102,.008]
+      ];
+      for (var digit of fingers) {
+        var x = digit[1], end = digit[2];
+        finger(digit[0],[[x,.063,0],[x,end-.025,.005],
+          [x*.94,end-.009,.016],[x*.81,end-.008,.031]],digit[3]);
+      }
+    } else if (penhold) {
       cushion('wrist-pad',[-.066,-.116,-.025],[.025,.019,.021],-.21);
       cushion('palm',[-.046,-.105,-.023],[.027,.027,.020],-.28);
       cushion('thumb-pad',[-.039,-.096,.001],[.017,.018,.019],-.31);
@@ -331,31 +346,17 @@
     torso.position.y = 1.16;
     torso.castShadow = true;
     body.add(torso);
-    var seams = mat(cfg.trim || 0xa5edcd, { roughness: .91 });
     var facing = cfg.facing === -1 ? -1 : 1;
     var stature = cfg.stature || 1;
     var penhold = cfg.grip === 'penhold';
-    if (cfg.character) {
-      var gold = mat(cfg.trim,{roughness:.89});
-      var collar = new T.Mesh(new T.CylinderGeometry(.052,.073,.026,28),shirt);
-      collar.position.set(0,1.418*stature,.009);
-      body.add(collar);
-      var piping = new T.Mesh(new T.TorusGeometry(.052,.0018,7,30),gold);
-      piping.rotation.x=Math.PI/2;
-      piping.position.copy(collar.position);
-      piping.position.y+=.012;
-      body.add(piping);
-    } else {
-      var chest = box(.21, .018, .006, seams, body, [0, 1.305, .10]);
-      chest.visible = false;
-    }
     var pelvis = new T.Mesh(new T.SphereGeometry(.16,16,10), pants);
     pelvis.scale.set(1.02,.65,.68);
     pelvis.position.y = .915;
     pelvis.castShadow = true;
     body.add(pelvis);
     var neck = new T.Mesh(new T.CylinderGeometry(.047,.053,.084,24),skin);
-    put(neck,[0,1.435*stature,0]);
+    neck.scale.set(cfg.neckWidth || 1,stature,cfg.neckWidth || 1);
+    put(neck,[0,1.435*stature,.003]);
     neck.castShadow = true;
     body.add(neck);
 
@@ -409,6 +410,8 @@
     parts.grip = buildGrip(skin,penhold);
     if (penhold) parts.penhold = parts.grip;
     parts.racket.add(parts.grip);
+    parts.balanceHand = buildGrip(skin,false,true);
+    root.add(parts.balanceHand);
     parts.rig = NS.athleteRig.build(T,root,skin,shirt,pants,shoe,facing,cfg);
     parts.torso.visible = parts.pelvis.visible = false;
     for (var part of limbs.children) if (part !== parts.racket) part.visible = false;
@@ -420,6 +423,9 @@
     parts.stanceDrop = cfg.stanceDrop || .075;
     parts.stanceSpread = cfg.stanceSpread || .18;
     parts.stanceLean = cfg.stanceLean || .085;
+    parts.stanceStagger = cfg.stanceStagger || .075;
+    parts.balance = cfg.balance || [.23,.98,.23];
+    parts.handFrame = new T.Matrix4();
     parts.weightTurn = cfg.weightTurn || 1;
     parts.armLength = cfg.armLength || stature;
     parts.L1 = .315*parts.armLength;
@@ -453,7 +459,7 @@
     var st = h.state, direction = h.facing;
     var speed = Math.hypot(stance.vx || 0, stance.vz || 0);
     if (!st.feet) st.feet = [-1, 1].map(function (side) {
-      return { x: stance.x + side * h.stanceSpread, z: stance.z - side * hand * direction * .075, y: .068 };
+      return { x: stance.x + side * h.stanceSpread, z: stance.z - side * hand * direction * h.stanceStagger, y: .068 };
     });
     var gait = st.gait;
     var spread = h.stanceSpread + Math.min(.045, speed * .014) + reach * .035;
@@ -462,7 +468,7 @@
       var order = [preferred, 1 - preferred];
       for (var index of order) {
         var side = index ? 1 : -1, foot = st.feet[index];
-        var x = stance.x + side * spread, z = stance.z - side * hand * direction * .075;
+        var x = stance.x + side * spread, z = stance.z - side * hand * direction * h.stanceStagger;
         if (Math.hypot(x - foot.x, z - foot.z) <= (speed > .18 ? .11 : .063)) continue;
         var duration = clamp(.29 - speed * .041, .14, .26);
         st.gait = { index: index, elapsed: 0, duration: duration, x0: foot.x, z0: foot.z,
@@ -481,7 +487,7 @@
     for (var i = 0; i < 2; i++) {
       var leg = i > 0 ? 'R' : 'L', sign = i > 0 ? 1 : -1;
       var point = st.feet[i];
-      var hip = [.108 * sign * h.hipWidth, .878*h.stature - drop, -direction*.02];
+      var hip = [.108*sign*h.hipWidth+h.body.position.x*.62,.878*h.stature-drop,-direction*.02];
       var ankle = [point.x - stance.x, point.y, point.z - stance.z];
       var joint = solveIK(hip, ankle, .423*h.stature, .405*h.stature, [sign*.17, 0, direction]);
       setLimb(h['thigh'+leg], hip, joint.elbow);
@@ -504,10 +510,11 @@
     var motion = strokeKinematics(stroke,side,dir);
     var brace = (motion.coil*.52 + motion.follow*.49)*motion.strength;
     st.turn = lerp(st.turn || 0,motion.turn*h.weightTurn,1-Math.exp(-dt*34));
-    var drop = h.stanceDrop + st.crouch*.14 + Math.min(.055, move*.015) + (kind === 'push' ? brace*.054 : 0);
+    st.stance = lerp(st.stance ?? 1,o.relaxed ? .50 : 1,1-Math.exp(-dt*12));
+    var drop = h.stanceDrop*st.stance + st.crouch*.14 + Math.min(.055,move*.015) + (kind === 'push' ? brace*.054 : 0);
     var breath = Math.sin(st.t * 1.8) * .004;
     var shift = clamp((stance.vx || 0)*.026 + motion.shift,-.09,.09);
-    var pitch = h.stanceLean + motion.strength*(motion.follow*.16 + motion.coil*.065);
+    var pitch = h.stanceLean*st.stance + motion.strength*(motion.follow*.16 + motion.coil*.065);
     h.body.rotation.set(dir * pitch, (dir < 0 ? Math.PI : 0) + st.turn, -shift*.52);
     h.body.position.set(shift, -drop + breath + .007, -dir * pitch * .92);
     put(h.racket,o.racketLocal);
@@ -521,18 +528,27 @@
     var stretch = sub3(hand, shoulders[0]);
     var distance = len3(stretch);
     if (distance > maxArm) {
-      var lunge = mul3(stretch, Math.min(.164, distance-maxArm)/distance);
+      var lunge = mul3(stretch, Math.min(.153, distance-maxArm)/distance);
       var shiftBody = mul3(lunge,.83);
-      shoulders[0] = add3(shoulders[0], lunge);
+      shoulders[0] = add3(shoulders[0], shiftBody);
       shoulders[1] = add3(shoulders[1], shiftBody);
       h.body.position.add(V3(shiftBody));
     }
-    var balance = [-side*(.145+.08*motion.coil)+shift*.5,
-      1.042*h.stature-drop*.50+(profile ? profile.lift*brace*.20 : 0),dir*(.33-.085*motion.follow)];
-    if (st.toss < .47) balance[1] += .42 * Math.sin(Math.PI * st.toss / .47);
+    var hands = h.balance;
+    var openHand = o.toss || st.toss < .40;
+    var balance = [-side*(hands[0]+.07*motion.coil+.03*motion.follow)+shift*.48,
+      hands[1]*h.stature-drop*.41+(profile ? profile.lift*brace*.18 : 0),
+      dir*(hands[2]-.085*motion.follow)];
+    if (openHand) {
+      var tossLift = Math.sin(Math.PI*clamp(st.toss/.44,0,1));
+      balance[0] = lerp(balance[0],-side*.14,.32+.25*tossLift);
+      balance[1] += .21*tossLift;
+      balance[2] += dir*.07;
+    }
+    h.balanceHand.visible = !openHand;
     for (var i = 0; i < 2; i++) {
       var arm = i === 0 ? 'R' : 'L';
-      var pole = i === 0 ? motion.pole : [-side*.64,-.72,dir*.12];
+      var pole = i === 0 ? motion.pole : [-side*.19,-.94,-dir*.20];
       var ik = solveIK(shoulders[i], i === 0 ? hand : balance, h.L1, h.L2, pole);
       if (i === 0 && !ik.reachable) h.racket.position.add(V3(sub3(ik.wrist,hand)));
       setLimb(h['upper'+arm], shoulders[i], ik.elbow);
@@ -545,18 +561,32 @@
         : V3(sub3(ik.wrist,ik.elbow)).normalize();
       var goal = add3(ik.wrist,[orientation.x*.065,orientation.y*.065,orientation.z*.065]);
       h.rig.arm(i===0 ? side : -side,shoulders[i],ik.elbow,ik.wrist,goal);
+      if (i === 1 && !openHand) {
+        // 空闲手顺着前臂自然弯曲，掌心略朝身体，用于随挥时平衡。
+        var fingers = orientation.clone().add(new T.Vector3(0,-.22,0)).normalize();
+        var palm = new T.Vector3(side*.71,-.64,dir*.22);
+        var handRight = new T.Vector3().crossVectors(fingers,palm).normalize();
+        palm.crossVectors(handRight,fingers);
+        h.balanceHand.quaternion.setFromRotationMatrix(h.handFrame.makeBasis(handRight,fingers,palm));
+        h.balanceHand.scale.set(-dir*side*h.armLength,h.armLength,h.armLength);
+        put(h.balanceHand,ik.wrist);
+      }
     }
-    h.rig.grip(side);
+    h.rig.grip(side,!openHand);
     h.rig.torso(h.body);
     h.head.children[0]?.userData.updateExpression?.(st.t);
     updateFeet(h, stance, dt, drop, brace, side);
     var ball = o.ballLocal;
-    if (ball) {
-      var yaw = Math.atan2(ball[0]*dir, Math.max(.35, ball[2]*dir));
-      st.headYaw = lerp(st.headYaw, clamp(yaw-st.turn, -.61, .61), 1-Math.exp(-dt*10));
-    }
+    var look = 1-Math.exp(-dt*10);
+    var yaw = ball ? Math.atan2(ball[0]*dir,Math.max(.45,ball[2]*dir))*.78 : 0;
+    var pitchToBall = ball
+      ? Math.atan2(1.49*h.stature-drop-ball[1],Math.max(.55,Math.hypot(ball[0],ball[2])))*.62
+      : .035;
+    // 抵消准备姿态的大部分躯干前倾，让眼睛朝向来球与球桌前方。
+    st.headYaw = lerp(st.headYaw,clamp(yaw-st.turn,-.45,.45),look);
+    st.headPitch = lerp(st.headPitch || 0,clamp(pitchToBall,-.12,.17)-pitch*.74,look);
     h.head.rotation.y = st.headYaw;
-    h.head.rotation.x = ball ? clamp((1.39 - ball[1])*.20, -.15, .22) : .07;
+    h.head.rotation.x = st.headPitch;
   }
 
   /* ---------------------------- 场景 ---------------------------- */
@@ -775,31 +805,44 @@
     var racket = buildRacket(penhold), hand = buildGrip(skin,penhold);
     racket.add(hand);
     var group = new T.Group();
-    var arm = {upper:limb(.041,sleeve,20),fore:forearm,hand:hand,racket:racket,group:group,penhold:penhold};
-    group.add(arm.upper,forearm,racket);
+    var upper = limb(.041,sleeve,24);
+    upper.castShadow = false;
+    var upperSkin = new T.Mesh(new T.CylinderGeometry(.029,.034,1,24),skin);
+    var elbow = joint(.030,skin);
+    elbow.scale.set(.98,.95,.98);
+    elbow.castShadow = false;
+    var arm = {upper:upper,upperSkin:upperSkin,elbow:elbow,fore:forearm,
+      hand:hand,racket:racket,group:group,penhold:penhold};
+    group.add(upper,upperSkin,elbow,forearm,racket);
     this.scene.add(group);
     return arm;
   };
 
   var roster = {
     wang: {character:'wang',shirt:0xbb212b,trim:0xe8a750,pants:0x1b1822,skin:0xd8a183,hair:0x171219,
-      bodyWidth:.98,shoulders:.173,headHeight:1.600,stanceDrop:.087,shoe:0xf6eeeb,shoeTrim:0x953a40},
+      bodyWidth:.98,shoulders:.173,headHeight:1.600,stanceDrop:.113,stanceLean:.151,stanceSpread:.198,
+      stanceStagger:.098,balance:[.255,.965,.205],shoe:0xf6eeeb,shoeTrim:0x953a40},
     harimoto: {character:'harimoto',shirt:0x405ab1,trim:0xc9cedd,pants:0x263d8a,skin:0xd9a98e,hair:0x21191a,
-      bodyWidth:1.015,shoulders:.184,headHeight:1.605,stanceDrop:.096,stanceSpread:.196,
+      bodyWidth:1.015,shoulders:.184,headHeight:1.605,stanceDrop:.129,stanceSpread:.208,stanceLean:.194,
+      stanceStagger:.044,balance:[.249,.971,.25],
       shortTrim:0x465c9b,shoe:0xf1eee9,shoeTrim:0x8498ae},
     fan: {character:'fan',shirt:0x202124,trim:0xab935b,pants:0x181a1e,skin:0xdca989,hair:0x1e1b20,
-      facing:-1,grip:'penhold',bodyWidth:1.085,shoulders:.193,headHeight:1.595,
+      facing:-1,grip:'penhold',bodyWidth:1.085,shoulders:.193,headHeight:1.595,stanceDrop:.135,stanceLean:.174,
+      stanceSpread:.206,stanceStagger:.068,balance:[.272,.972,.240],
       shortTrim:0x38372f,shoe:0xf4efe9,shoeTrim:0x84888b},
     ma: {character:'ma',shirt:0x1c48a0,trim:0xcc3d97,pants:0x181b31,skin:0xd5a287,hair:0x221c1d,
       facing:-1,grip:'shakehand',bodyWidth:.99,hipWidth:.98,shoulders:.18,headHeight:1.606,
-      stanceDrop:.079,stanceSpread:.190,stanceLean:.086,weightTurn:1.10,shortTrim:0x35496a,
+      stanceDrop:.116,stanceSpread:.225,stanceLean:.153,stanceStagger:.102,weightTurn:1.10,
+      balance:[.255,.984,.208],shortTrim:0x35496a,
       shoe:0xf3eeef,shoeTrim:0x8e3e87,sole:0xe3d7d5},
-    sun: {character:'sun',shirt:0x1b477d,trim:0x51acc1,pants:0x181c29,skin:0xe1ac92,hair:0x232022,
-      bodyWidth:.89,hipWidth:.96,shoulders:.156,headHeight:1.606,stature:.924,headScale:.95,armLength:.90,
-      stanceDrop:.088,stanceSpread:.16,stanceLean:.108,weightTurn:.96,shortTrim:0x35436b,shoe:0xcbdc4e,shoeTrim:0x768328,sole:0xb7c940},
+    sun: {character:'sun',shirt:0x1b477d,trim:0x51acc1,sleeveColor:0x459fba,pants:0x181c29,skin:0xe1ac92,hair:0x232022,
+      bodyWidth:.89,hipWidth:.98,shoulders:.156,headHeight:1.606,stature:.924,headScale:.95,armLength:.90,neckWidth:.86,
+      stanceDrop:.137,stanceSpread:.177,stanceLean:.181,stanceStagger:.047,weightTurn:.96,
+      balance:[.217,.981,.244],shortTrim:0x35436b,shoe:0xcbdc4e,shoeTrim:0x768328,sole:0xb7c940},
     ovtcharov: {character:'ovtcharov',shirt:0x183e75,trim:0xdbaa47,pants:0x181b26,skin:0xe0a88b,hair:0x3b2a24,
       bodyWidth:1.09,hipWidth:1.035,shoulders:.203,headHeight:1.604,stature:1.056,headScale:1.01,
-      armLength:1.073,stanceDrop:.113,stanceSpread:.215,stanceLean:.117,weightTurn:1.12,shortTrim:0x36496b,
+      armLength:1.073,stanceDrop:.146,stanceSpread:.247,stanceLean:.193,stanceStagger:.087,weightTurn:1.12,
+      balance:[.289,.957,.216],shortTrim:0x36496b,
       shoe:0xf0f1ef,shoeTrim:0x63758b,sole:0xd5d5d2}
   };
 
@@ -848,7 +891,7 @@
     this.armGroup.visible = this.view === 'first' && !this.intro;
     this.avatar.root.visible = this.view !== 'first' && !this.intro;
     var portrait = this.camera.aspect < .9;
-    this.camera.fov = this.intro ? 45 : this.view === 'first' ? (this.touchScreen && portrait ? 72 : 62)
+    this.camera.fov = this.intro ? 45 : this.view === 'first' ? 62+clamp((.88-this.camera.aspect)*14,0,6)
       : this.view === 'court' ? (portrait ? 59 : 51) : (portrait ? 64 : 55);
     this.camera.updateProjectionMatrix();
   };
@@ -1004,10 +1047,16 @@
     var armReach = h.L1 + h.L2 - .013;
     if (distance > armReach) shoulder = add3(shoulder,mul3(stretch,(distance-armReach)/distance));
     var ik = solveIK(shoulder,wrist,h.L1,h.L2,motion.pole);
-    // 从真实肘肩轴延伸到屏幕边缘，避免袖管朝向与上臂关节脱节。
-    var direction = norm3(sub3(shoulder,ik.elbow));
-    var nearSleeve = add3(shoulder,mul3(direction,.46));
-    setLimb(arm.upper,nearSleeve,ik.elbow);
+    // 袖口从持拍侧画面下缘入镜，固定深度避免肩肘外推时横穿球场。
+    var sleeveDepth = .34;
+    var halfHeight = sleeveDepth * Math.tan(this.camera.fov*Math.PI/360);
+    var sleeveStart = this.camera.localToWorld(new T.Vector3(
+      side*halfHeight*this.camera.aspect*1.35, -halfHeight*1.55, -sleeveDepth
+    ));
+    var sleeveHem = sleeveStart.clone().lerp(V3(ik.elbow),.61);
+    setLimb(arm.upper,sleeveStart,sleeveHem);
+    setLimb(arm.upperSkin,sleeveHem,ik.elbow);
+    put(arm.elbow,ik.elbow);
     setLimb(arm.fore,ik.elbow,ik.wrist);
   };
 
@@ -1043,7 +1092,8 @@
     state.crouch = lerp(state.crouch, clamp((1.08 - p[1]) * 1.35, 0, .60), 1-Math.exp(-dt*9));
     var ball = snap.ball;
     poseHuman(hum, {
-      dt:dt, side:side, stance:stance, stroke:stroke,
+      dt:dt, side:side, stance:stance, stroke:stroke, toss:toss,
+      relaxed:['point','let','over'].includes(snap.rules.state),
       racketLocal:[p[0]-stance.x,p[1],p[2]-stance.z],
       normal:paddle.n || [0,0,hum.facing],
       ballLocal:ball && ball.alive ? [ball.p[0]-stance.x,ball.p[1],ball.p[2]-stance.z] : null
