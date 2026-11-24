@@ -104,14 +104,22 @@
     return v;
   }
 
+  var CHARACTERS = Object.freeze({
+    wang: { hand:'left', smash:.76, block:.62, topspin:.62, sideSpin:1, pace:1 },
+    harimoto: { hand:'right', smash:.78, block:.73, topspin:.64, sideSpin:.90, pace:1 },
+    ovtcharov: { hand:'right', smash:.72, block:.44, topspin:.84, sideSpin:1.28, pace:1.035 },
+    sun: { hand:'right', smash:.82, block:.48, topspin:.72, sideSpin:.84, pace:1.04 }
+  });
+
   function Opponent(key, opts) {
     opts = opts || {};
     this.key = K.DIFFICULTY[key] ? key : 'normal';
     this.cfg = K.DIFFICULTY[this.key];
     this.paddle = new P.Paddle('ai');
     this.rng = opts.rng || Math.random;
-    this.character = opts.character === 'harimoto' ? 'harimoto' : 'wang';
-    this.hand = this.character === 'harimoto' ? 'right' : 'left';
+    this.character = Object.hasOwn(CHARACTERS,opts.character) ? opts.character : 'wang';
+    this.style = CHARACTERS[this.character];
+    this.hand = this.style.hand;
     this.stance = C.stance(-1.88);
     this.reactionClock = 0;
     this.scanIn = 0;
@@ -135,7 +143,7 @@
     var direction = this.rng() < .5 ? -1 : 1;
     var p = [gentle ? 0 : V.clamp(this.stance.x - direction * .21, -.44, .44), s.p[1], s.p[2]];
     var candidate = [direction * (gentle ? .12 : .35 + .56 * this.rng()), s.v[1], s.v[2]];
-    var sidespin = [this.rng() < .5 ? -22 : 19, direction * 26, 0].map(function (n) {
+    var sidespin = [this.rng() < .5 ? -22 : 19, direction * 26 * this.style.sideSpin, 0].map(function (n) {
       return n * this.cfg.spin;
     }, this);
     var ball = V.makeBall(p, candidate, sidespin, { lastTouch: 'ai', serve: true });
@@ -162,12 +170,12 @@
     var quick = Math.abs(ball.v[2]) > 6.2;
     var short = ball.p[2] > -1.27, backspin = ball.w[0] * Math.sign(ball.v[2]) < -53;
     var roll = ai.rng();
-    if (high && roll < .76) return 'smash';
+    if (high && roll < ai.style.smash) return 'smash';
     if (short && low && (backspin || roll < .68)) return 'push';
     if (stance.z < -2.23 && low && (quick || roll < .40)) return 'chop';
-    if (quick && (side === 'backhand' ? roll < .62 : roll < .43)) return 'block';
+    if (quick && (side === 'backhand' ? roll < ai.style.block : roll < .43)) return 'block';
     if (stance.z < -2.38 && roll < .28) return 'lob';
-    if (backspin || (roll < .62 && (!low || ai.key === 'devil'))) return 'topspin';
+    if (backspin || (roll < ai.style.topspin && (!low || ai.key === 'devil'))) return 'topspin';
     return 'drive';
   }
 
@@ -270,7 +278,7 @@
     var depth = gentle ? (gentleAngle ? .84 : 1.05) + this.rng() * .16
       : short ? .43 + this.rng() * .25 : .91 + this.rng() * .31;
     var aim = [tx, K.TABLE.HEIGHT, depth];
-    var paceScale = { novice:.76, normal:.94, hard:1.06, devil:1.16 }[this.key];
+    var paceScale = { novice:.76, normal:.94, hard:1.06, devil:1.16 }[this.key] * (gentle ? 1 : this.style.pace);
     var shot = C.launchShot(ball.p, 'ai', plan.kind, aim, paceScale);
     var kind = plan.kind;
     if (!shot) {
@@ -292,6 +300,7 @@
 
   NS.ai = {
     Opponent: Opponent,
+    CHARACTERS: CHARACTERS,
     solveServe: solveServe,
     solveShot: solveShot
   };

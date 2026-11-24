@@ -266,19 +266,42 @@
     return grip;
   }
 
-  function penholdWrist(racket,side) {
-    return arr(new T.Vector3(-.081*side,-.118,-.028).applyQuaternion(racket.quaternion).add(racket.position));
+  function strokeKinematics(stroke, side, facing) {
+    var phase = stroke ? clamp(stroke.phase, 0, 1) : 0;
+    var kind = stroke?.kind;
+    var backhand = stroke?.side === 'backhand';
+    var strength = kind === 'block' ? .27 : kind === 'push' || kind === 'cut' ? .43
+      : kind === 'smash' ? 1 : .78;
+    var coil = Math.sin(Math.PI * clamp(phase / .50, 0, 1));
+    var follow = Math.sin(Math.PI * clamp((phase - .43) / .57, 0, 1));
+    if (phase === 1) coil = follow = 0;
+    var turn = facing * side * strength * (coil*.52 - follow*.54);
+    var shift = side * strength * (coil*.057 - follow*.060);
+    var faceForward = backhand || !kind || kind === 'serve'
+      ? 0 : .96 * Math.sin(Math.PI/2*Math.min(phase/.56,(1-phase)/.44))**2;
+    if (phase === 1) faceForward = 0;
+    return {
+      coil:coil, follow:follow, strength:strength, faceForward:faceForward,
+      turn:backhand ? -turn*.36 : turn, shift:backhand ? -shift*.31 : shift,
+      pole:backhand ? [side*.15,-.93,-facing*.10]
+        : [side*(.66+.39*coil+.20*follow),-.68+.16*coil,-facing*(.13+.23*coil)]
+    };
   }
 
-  function placePenhold(racket,normal,side,stroke,grip) {
-    aimRacket(racket,normal);
-    var phase = stroke ? clamp(stroke.phase,0,1) : 0;
+  function placeGrip(racket,normal,side,facing,stroke,grip,penhold,motion) {
+    var n = arr(normal || [0,0,facing]);
+    var blend = stroke?.tracked ? 0 : motion.faceForward;
+    // 预测挥拍击球时把拍面转向对方半台，同时沿用来球所需的拍面开合。
+    var forward = norm3([n[0]*.45,clamp(n[1],-.34,.32),facing]);
+    aimRacket(racket,n.map(function (v,i) { return lerp(v,forward[i],blend); }));
     var backhand = stroke?.side === 'backhand';
-    var wind = Math.sin(Math.PI*clamp(phase/.56,0,1));
-    var follow = Math.sin(Math.PI*clamp((phase-.56)/.44,0,1));
-    racket.rotateZ(side*((backhand ? .49 : -.24) + (backhand ? -.18 : -.31)*wind + .24*follow));
-    grip.scale.x = side;
-    return penholdWrist(racket,side);
+    var mirror = -facing*side;
+    var tilt = penhold ? (backhand ? .44 : -.19) : (backhand ? .26 : -.10);
+    var wind = (backhand ? -.15 : -.24)*motion.coil;
+    racket.rotateZ(mirror*(tilt + wind + .15*motion.follow));
+    grip.scale.x = mirror;
+    var wrist = penhold ? [-.081*mirror,-.118,-.028] : [-.069*mirror,-.145,-.012];
+    return arr(V3(wrist).applyQuaternion(racket.quaternion).add(racket.position));
   }
 
   /* ---------------------------- 3D 人形 ---------------------------- */
@@ -310,10 +333,12 @@
     body.add(torso);
     var seams = mat(cfg.trim || 0xa5edcd, { roughness: .91 });
     var facing = cfg.facing === -1 ? -1 : 1;
+    var stature = cfg.stature || 1;
+    var penhold = cfg.grip === 'penhold';
     if (cfg.character) {
       var gold = mat(cfg.trim,{roughness:.89});
       var collar = new T.Mesh(new T.CylinderGeometry(.052,.073,.026,28),shirt);
-      collar.position.set(0,1.418,.009);
+      collar.position.set(0,1.418*stature,.009);
       body.add(collar);
       var piping = new T.Mesh(new T.TorusGeometry(.052,.0018,7,30),gold);
       piping.rotation.x=Math.PI/2;
@@ -330,15 +355,17 @@
     pelvis.castShadow = true;
     body.add(pelvis);
     var neck = new T.Mesh(new T.CylinderGeometry(.047,.053,.084,24),skin);
-    put(neck,[0,1.435,0]);
+    put(neck,[0,1.435*stature,0]);
     neck.castShadow = true;
     body.add(neck);
 
     var head = new T.Group();
-    put(head,[0,cfg.headHeight || 1.60,0]);
+    put(head,[0,(cfg.headHeight || 1.60)*stature,cfg.headDepth || 0]);
     body.add(head);
     if (cfg.character) {
-      head.add(NS.wangModel.buildHead(T, skin, cfg.character));
+      var face = NS.wangModel.buildHead(T, skin, cfg.character);
+      face.scale.multiplyScalar(cfg.headScale || 1);
+      head.add(face);
     } else {
       var skull = new T.Mesh(new T.SphereGeometry(0.113, 20, 16), skin);
       skull.scale.set(1, 1.13, 0.96); skull.castShadow = true; head.add(skull);
@@ -370,7 +397,7 @@
       thighL: limb(0.070, pants), shinL: limb(0.052, pants),
       kneeR: joint(0.060, pants), kneeL: joint(0.060, pants),
       shoeR: box(0.11, 0.055, 0.245, shoe, null), shoeL: box(0.11, 0.055, 0.245, shoe, null),
-      racket: buildRacket(cfg.facing === -1)
+      racket: buildRacket(penhold)
     };
     ['upperR','foreR','upperL','foreL','elbowR','elbowL','handR','handL',
      'shoulderR','shoulderL','thighR','shinR','thighL','shinL','kneeR','kneeL',
@@ -379,8 +406,8 @@
     ['foreR','foreL','elbowR','elbowL','handR','handL','shoulderR','shoulderL',
      'kneeR','kneeL','shoeR','shoeL'].forEach(function (k) { parts[k].castShadow = false; });
 
-    parts.grip = buildGrip(skin,facing===-1);
-    if (facing===-1) parts.penhold = parts.grip;
+    parts.grip = buildGrip(skin,penhold);
+    if (penhold) parts.penhold = parts.grip;
     parts.racket.add(parts.grip);
     parts.rig = NS.athleteRig.build(T,root,skin,shirt,pants,shoe,facing,cfg);
     parts.torso.visible = parts.pelvis.visible = false;
@@ -388,7 +415,15 @@
 
     parts.mats = { skin: skin, shirt: shirt, pants: pants, hair: hair };
     parts.shoulderWidth = cfg.shoulders || .179;
-    parts.L1 = 0.315; parts.L2 = 0.285;   // 上臂 / 前臂
+    parts.stature = stature;
+    parts.hipWidth = cfg.hipWidth || 1;
+    parts.stanceDrop = cfg.stanceDrop || .075;
+    parts.stanceSpread = cfg.stanceSpread || .18;
+    parts.stanceLean = cfg.stanceLean || .085;
+    parts.weightTurn = cfg.weightTurn || 1;
+    parts.armLength = cfg.armLength || stature;
+    parts.L1 = .315*parts.armLength;
+    parts.L2 = .285*parts.armLength;
     parts.state = {
       t: 0, swing: 999, toss: 999, step: 0, rootX: 0, rootZ: 0,
       lastX: 0, crouch: 0, headYaw: 0
@@ -414,20 +449,20 @@
     return [x, y, z];
   }
 
-  function updateFeet(h, stance, dt, drop, reach) {
+  function updateFeet(h, stance, dt, drop, reach, hand) {
     var st = h.state, direction = h.facing;
     var speed = Math.hypot(stance.vx || 0, stance.vz || 0);
     if (!st.feet) st.feet = [-1, 1].map(function (side) {
-      return { x: stance.x + side * .18, z: stance.z - side * direction * .075, y: .068 };
+      return { x: stance.x + side * h.stanceSpread, z: stance.z - side * hand * direction * .075, y: .068 };
     });
     var gait = st.gait;
-    var spread = .18 + Math.min(.045, speed * .014) + reach * .035;
+    var spread = h.stanceSpread + Math.min(.045, speed * .014) + reach * .035;
     if (!gait) {
       var preferred = stance.vx > .12 ? 1 : stance.vx < -.12 ? 0 : st.swingFoot || 0;
       var order = [preferred, 1 - preferred];
       for (var index of order) {
         var side = index ? 1 : -1, foot = st.feet[index];
-        var x = stance.x + side * spread, z = stance.z - side * direction * .075;
+        var x = stance.x + side * spread, z = stance.z - side * hand * direction * .075;
         if (Math.hypot(x - foot.x, z - foot.z) <= (speed > .18 ? .11 : .063)) continue;
         var duration = clamp(.29 - speed * .041, .14, .26);
         st.gait = { index: index, elapsed: 0, duration: duration, x0: foot.x, z0: foot.z,
@@ -446,9 +481,9 @@
     for (var i = 0; i < 2; i++) {
       var leg = i > 0 ? 'R' : 'L', sign = i > 0 ? 1 : -1;
       var point = st.feet[i];
-      var hip = [.108 * sign, .878 - drop, -direction*.02];
+      var hip = [.108 * sign * h.hipWidth, .878*h.stature - drop, -direction*.02];
       var ankle = [point.x - stance.x, point.y, point.z - stance.z];
-      var joint = solveIK(hip, ankle, .423, .405, [sign*.17, 0, direction]);
+      var joint = solveIK(hip, ankle, .423*h.stature, .405*h.stature, [sign*.17, 0, direction]);
       setLimb(h['thigh'+leg], hip, joint.elbow);
       setLimb(h['shin'+leg], joint.elbow, joint.wrist);
       put(h['knee'+leg], joint.elbow);
@@ -458,42 +493,28 @@
     }
   }
 
-  /* The racket center remains on the simulated impact point. Hands follow the handle via IK. */
+  // 球拍以模拟触球点为中心，手腕由拍柄反解。
   function poseHuman(h, o) {
     var st = h.state, dt = o.dt, side = o.side, dir = h.facing;
     var stance = o.stance, move = Math.hypot(stance.vx || 0, stance.vz || 0);
     st.t += dt;
     var stroke = o.stroke;
-    var kind = stroke && stroke.kind;
-    var wing = stroke && stroke.side === 'backhand' ? -side : side;
+    var kind = stroke?.kind;
     var profile = NS.court.PROFILES[kind];
-    var strength = kind === 'block' ? .32 : kind === 'push' ? .43 : kind === 'smash' ? 1 : .74;
-    var phase = stroke ? clamp(stroke.phase, 0, 1) : 0;
-    var backswing = Math.sin(Math.PI*clamp(phase/.56,0,1));
-    var release = Math.sin(Math.PI*clamp((phase-.49)/.51,0,1));
-    var turnGoal = (release*.81 - backswing) * strength * (kind === 'smash' ? .66 : .47) * wing;
-    st.turn = lerp(st.turn || 0,turnGoal,1-Math.exp(-dt*22));
-    var brace = stroke ? Math.sin(Math.PI * phase) * strength : 0;
-    var drop = .075 + st.crouch*.14 + Math.min(.055, move*.015) + (kind === 'push' ? brace*.054 : 0);
+    var motion = strokeKinematics(stroke,side,dir);
+    var brace = (motion.coil*.52 + motion.follow*.49)*motion.strength;
+    st.turn = lerp(st.turn || 0,motion.turn*h.weightTurn,1-Math.exp(-dt*34));
+    var drop = h.stanceDrop + st.crouch*.14 + Math.min(.055, move*.015) + (kind === 'push' ? brace*.054 : 0);
     var breath = Math.sin(st.t * 1.8) * .004;
-    var shift = clamp((stance.vx || 0)*.026 + wing*strength*(release*.047-backswing*.056),-.09,.09);
-    var pitch = .085 + strength*(release*.16 + backswing*.07);
+    var shift = clamp((stance.vx || 0)*.026 + motion.shift,-.09,.09);
+    var pitch = h.stanceLean + motion.strength*(motion.follow*.16 + motion.coil*.065);
     h.body.rotation.set(dir * pitch, (dir < 0 ? Math.PI : 0) + st.turn, -shift*.52);
     h.body.position.set(shift, -drop + breath + .007, -dir * pitch * .92);
-    var racket = arr(o.racketLocal);
-    put(h.racket, racket);
-    var hand;
-    if (h.penhold) {
-      hand = placePenhold(h.racket,o.normal,side,stroke,h.penhold);
-    } else {
-      aimRacket(h.racket,o.normal);
-      if (stroke) h.racket.rotateZ(wing*(stroke.side === 'backhand' ? .26 : -.20)*brace);
-      h.grip.scale.x = -side;
-      hand = arr(new T.Vector3(.069*side,-.145,-.012).applyQuaternion(h.racket.quaternion).add(h.racket.position));
-    }
+    put(h.racket,o.racketLocal);
+    var hand = placeGrip(h.racket,o.normal,side,dir,stroke,h.grip,!!h.penhold,motion);
     // 肩关节与球衣一起转动。
     var shoulders = [side,-side].map(function (armSide) {
-      var shoulder = new T.Vector3(armSide*dir*h.shoulderWidth,1.362,.032);
+      var shoulder = new T.Vector3(armSide*dir*h.shoulderWidth,1.362*h.stature,.032);
       return arr(shoulder.applyQuaternion(h.body.quaternion).add(h.body.position));
     });
     var maxArm = h.L1 + h.L2 - .014;
@@ -506,12 +527,12 @@
       shoulders[1] = add3(shoulders[1], shiftBody);
       h.body.position.add(V3(shiftBody));
     }
-    var balance = [-side*(.145+.08*backswing)+shift*.5,
-      1.042-drop*.50+(profile ? profile.lift*brace*.20 : 0),dir*(.33-.085*release)];
+    var balance = [-side*(.145+.08*motion.coil)+shift*.5,
+      1.042*h.stature-drop*.50+(profile ? profile.lift*brace*.20 : 0),dir*(.33-.085*motion.follow)];
     if (st.toss < .47) balance[1] += .42 * Math.sin(Math.PI * st.toss / .47);
     for (var i = 0; i < 2; i++) {
       var arm = i === 0 ? 'R' : 'L';
-      var pole = i === 0 && stroke?.side === 'backhand' ? [side*.15, -.93, -dir*.10] : [(i === 0 ? side : -side)*.64, -.72, dir*.12];
+      var pole = i === 0 ? motion.pole : [-side*.64,-.72,dir*.12];
       var ik = solveIK(shoulders[i], i === 0 ? hand : balance, h.L1, h.L2, pole);
       if (i === 0 && !ik.reachable) h.racket.position.add(V3(sub3(ik.wrist,hand)));
       setLimb(h['upper'+arm], shoulders[i], ik.elbow);
@@ -520,7 +541,7 @@
       put(h['shoulder'+arm], shoulders[i]);
       put(h['hand'+arm], ik.wrist);
       var orientation = i === 0
-        ? new T.Vector3(side * -.27, .47, dir * .75).applyQuaternion(h.racket.quaternion)
+        ? new T.Vector3(-dir*side*.55,.78,-.17).applyQuaternion(h.racket.quaternion)
         : V3(sub3(ik.wrist,ik.elbow)).normalize();
       var goal = add3(ik.wrist,[orientation.x*.065,orientation.y*.065,orientation.z*.065]);
       h.rig.arm(i===0 ? side : -side,shoulders[i],ik.elbow,ik.wrist,goal);
@@ -528,7 +549,7 @@
     h.rig.grip(side);
     h.rig.torso(h.body);
     h.head.children[0]?.userData.updateExpression?.(st.t);
-    updateFeet(h, stance, dt, drop, brace);
+    updateFeet(h, stance, dt, drop, brace, side);
     var ball = o.ballLocal;
     if (ball) {
       var yaw = Math.atan2(ball[0]*dir, Math.max(.35, ball[2]*dir));
@@ -577,7 +598,6 @@
     this._buildTable();
     this._buildBall();
     this._buildAim();
-    this._buildFirstPersonArm();
     this._buildOpponent();
     this._buildPlayerAvatar();
     this.resize();
@@ -742,30 +762,45 @@
     this.scene.add(this.ballShadow);
   };
 
-  /* 第一视角：只画一条持拍手臂（肩固定在相机右下，腕由球拍位置反解） */
-  Scene3D.prototype._buildFirstPersonArm = function () {
-    var sleeve = mat(0x1a2435,{roughness:.91});
-    var skin = mat(0xdca989,{roughness:.84});
+  /* 第一视角使用同角色的持拍手、袖色和上肢比例。 */
+  Scene3D.prototype._buildFirstPersonArm = function (cfg) {
+    var sleeve = mat(cfg.shirt,{roughness:.91});
+    var skin = mat(cfg.skin,{roughness:.84});
+    var penhold = cfg.grip === 'penhold';
     var section = [[0,-.50],[.029,-.50],[.033,-.37],[.033,-.21],[.030,-.02],
       [.026,.18],[.023,.34],[.022,.50],[0,.50]];
     var forearm = new T.Mesh(new T.LatheGeometry(section.map(function (row) {
       return new T.Vector2(row[0],row[1]);
     }),26),skin);
-    var racket = buildRacket(true), hand = buildGrip(skin,true);
+    var racket = buildRacket(penhold), hand = buildGrip(skin,penhold);
     racket.add(hand);
-    this.armGroup = new T.Group();
-    this.arm = {upper:limb(.041,sleeve,20),fore:forearm,hand:hand,racket:racket};
-    this.armGroup.add(this.arm.upper,forearm,racket);
-    this.scene.add(this.armGroup);
+    var group = new T.Group();
+    var arm = {upper:limb(.041,sleeve,20),fore:forearm,hand:hand,racket:racket,group:group,penhold:penhold};
+    group.add(arm.upper,forearm,racket);
+    this.scene.add(group);
+    return arm;
   };
 
   var roster = {
-    wang: {character:'wang',shirt:0xab2224,trim:0xda8b36,pants:0x181921,skin:0xd8a183,hair:0x171219,
-      bodyWidth:.98,shoulders:.173,headHeight:1.600},
-    harimoto: {character:'harimoto',shirt:0x213f83,trim:0x64a7c6,pants:0x171c2a,skin:0xd9a98e,hair:0x21191a,
-      bodyWidth:1.015,shoulders:.184,headHeight:1.605},
-    fan: {character:'fan',shirt:0x172642,trim:0x4565a0,pants:0x172133,skin:0xdca989,hair:0x1e1b20,facing:-1,
-      bodyWidth:1.085,shoulders:.193,headHeight:1.595}
+    wang: {character:'wang',shirt:0xbb212b,trim:0xe8a750,pants:0x1b1822,skin:0xd8a183,hair:0x171219,
+      bodyWidth:.98,shoulders:.173,headHeight:1.600,stanceDrop:.087,shoe:0xf6eeeb,shoeTrim:0x953a40},
+    harimoto: {character:'harimoto',shirt:0x405ab1,trim:0xc9cedd,pants:0x263d8a,skin:0xd9a98e,hair:0x21191a,
+      bodyWidth:1.015,shoulders:.184,headHeight:1.605,stanceDrop:.096,stanceSpread:.196,
+      shortTrim:0x465c9b,shoe:0xf1eee9,shoeTrim:0x8498ae},
+    fan: {character:'fan',shirt:0x202124,trim:0xab935b,pants:0x181a1e,skin:0xdca989,hair:0x1e1b20,
+      facing:-1,grip:'penhold',bodyWidth:1.085,shoulders:.193,headHeight:1.595,
+      shortTrim:0x38372f,shoe:0xf4efe9,shoeTrim:0x84888b},
+    ma: {character:'ma',shirt:0x1c48a0,trim:0xcc3d97,pants:0x181b31,skin:0xd5a287,hair:0x221c1d,
+      facing:-1,grip:'shakehand',bodyWidth:.99,hipWidth:.98,shoulders:.18,headHeight:1.606,
+      stanceDrop:.079,stanceSpread:.190,stanceLean:.086,weightTurn:1.10,shortTrim:0x35496a,
+      shoe:0xf3eeef,shoeTrim:0x8e3e87,sole:0xe3d7d5},
+    sun: {character:'sun',shirt:0x1b477d,trim:0x51acc1,pants:0x181c29,skin:0xe1ac92,hair:0x232022,
+      bodyWidth:.89,hipWidth:.96,shoulders:.156,headHeight:1.606,stature:.924,headScale:.95,armLength:.90,
+      stanceDrop:.088,stanceSpread:.16,stanceLean:.108,weightTurn:.96,shortTrim:0x35436b,shoe:0xcbdc4e,shoeTrim:0x768328,sole:0xb7c940},
+    ovtcharov: {character:'ovtcharov',shirt:0x183e75,trim:0xdbaa47,pants:0x181b26,skin:0xe0a88b,hair:0x3b2a24,
+      bodyWidth:1.09,hipWidth:1.035,shoulders:.203,headHeight:1.604,stature:1.056,headScale:1.01,
+      armLength:1.073,stanceDrop:.113,stanceSpread:.215,stanceLean:.117,weightTurn:1.12,shortTrim:0x36496b,
+      shoe:0xf0f1ef,shoeTrim:0x63758b,sole:0xd5d5d2}
   };
 
   Scene3D.prototype._buildOpponent = function () {
@@ -774,7 +809,7 @@
   };
 
   Scene3D.prototype.setOpponent = function (key) {
-    if (key !== 'wang' && key !== 'harimoto') return;
+    if (!['wang','harimoto','ovtcharov','sun'].includes(key)) return;
     if (this.ai && this.ai === this.opponents[key]) return;
     if (this.ai) this.ai.root.visible = false;
     if (!this.opponents[key]) {
@@ -788,10 +823,24 @@
   };
 
   Scene3D.prototype._buildPlayerAvatar = function () {
-    this.avatar = buildHuman(roster.fan);
-    this.avatar.root.position.set(0, 0, K.PLAYER_Z + 0.62);
-    this.scene.add(this.avatar.root);
-    this.avatar.root.visible = false;
+    this.players = {};
+    this.setPlayer('fan');
+  };
+
+  Scene3D.prototype.setPlayer = function (key) {
+    if (!['fan','ma'].includes(key) || this.playerKey === key) return;
+    if (this.avatar) this.avatar.root.visible = this.armGroup.visible = false;
+    if (!this.players[key]) {
+      var avatar = buildHuman(roster[key]);
+      avatar.root.position.set(0,0,K.PLAYER_Z+.62);
+      this.scene.add(avatar.root);
+      this.players[key] = {avatar:avatar,arm:this._buildFirstPersonArm(roster[key])};
+    }
+    this.playerKey = key;
+    this.avatar = this.players[key].avatar;
+    this.arm = this.players[key].arm;
+    this.armGroup = this.arm.group;
+    this.setView(this.view);
   };
 
   Scene3D.prototype.setView = function (mode) {
@@ -799,7 +848,7 @@
     this.armGroup.visible = this.view === 'first' && !this.intro;
     this.avatar.root.visible = this.view !== 'first' && !this.intro;
     var portrait = this.camera.aspect < .9;
-    this.camera.fov = this.intro ? 45 : this.view === 'first' ? 62
+    this.camera.fov = this.intro ? 45 : this.view === 'first' ? (this.touchScreen && portrait ? 72 : 62)
       : this.view === 'court' ? (portrait ? 59 : 51) : (portrait ? 64 : 55);
     this.camera.updateProjectionMatrix();
   };
@@ -819,7 +868,6 @@
     if (w < 2 || h < 2) { w = 960; h = 540; }
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w/h;
-    this.camera.fov = this.touchScreen && this.camera.aspect < .82 ? 72 : 62;
     this.setView(this.view);
   };
 
@@ -904,7 +952,7 @@
     var body = input && input.body;
     var tilt = body && body.ok ? body.leanX : 0;
     var shift = 1 - Math.exp(-dt * 12);
-    var headY = 1.59 - Math.min(.09, Math.hypot(stance.vx, stance.vz)*.019);
+    var headY = 1.59*this.avatar.stature - Math.min(.09, Math.hypot(stance.vx, stance.vz)*.019);
     if (this.intro) {
       var portrait = this.camera.aspect < .88;
       var slide = Math.sin(this.time*.52)*.08;
@@ -939,42 +987,57 @@
     this.camera.updateMatrixWorld(true);
   };
 
-  Scene3D.prototype._updateFirstPersonArm = function (snap, input) {
+  Scene3D.prototype._updateFirstPersonArm = function (snap, input, dt) {
     if (!this.armGroup.visible) return;
     var stance = snap.playerStance || { x:0,z:1.85 };
     var side = snap.playerHand === 'left' ? -1 : 1;
     var bb = input && input.body && input.body.ok ? input.body : null;
-    var shoulder = [stance.x+side*.194+(bb ? bb.leanX*.06 : 0),1.335,stance.z+.042];
-    var p = snap.paddle.p, n = snap.paddle.n;
-    var stroke = snap.playerStroke;
-    if (stroke && stroke.phase < 1) {
-      var phase = clamp(stroke.phase,0,1);
-      var turn = Math.sin(Math.PI*clamp(phase/.56,0,1));
-      var transfer = Math.sin(Math.PI*clamp((phase-.47)/.53,0,1));
-      var wing = stroke.side === 'backhand' ? -side : side;
-      shoulder[0] += wing*(.046*turn-.054*transfer);
-      shoulder[2] += .045*turn-.083*transfer;
-      shoulder[1] += stroke.kind === 'smash' ? .060*turn-.034*transfer : .018*turn;
-    }
-    put(this.arm.racket, p);
-    var wrist = placePenhold(this.arm.racket,n,side,stroke,this.arm.hand);
+    var h = this.avatar, arm = this.arm;
+    var stroke = activeStroke(h.state,playerStroke(snap,input,side),dt);
+    var motion = strokeKinematics(stroke,side,-1);
+    var shoulder = [stance.x+side*h.shoulderWidth+(bb ? bb.leanX*.06 : 0)+motion.shift,
+      1.335*h.stature+.028*motion.coil-.020*motion.follow,
+      stance.z+.042+.084*motion.coil-.105*motion.follow];
+    put(arm.racket,snap.paddle.p);
+    var wrist = placeGrip(arm.racket,snap.paddle.n,side,-1,stroke,arm.hand,arm.penhold,motion);
     var stretch = sub3(wrist,shoulder), distance = len3(stretch);
-    if (distance > .619) shoulder = add3(shoulder,mul3(stretch,(distance-.619)/distance));
-    var pole = [side*(stroke?.side === 'backhand' ? .18 : .50),-.73,.22];
-    var ik = solveIK(shoulder,wrist,.316,.305,pole);
-    // 袖管从画面边缘接到上臂，前臂末端与直板握姿的手腕重合。
-    var nearSleeve = this.camera.localToWorld(new T.Vector3(side*.52,-.46,-.21));
-    setLimb(this.arm.upper,nearSleeve,ik.elbow);
-    setLimb(this.arm.fore,ik.elbow,ik.wrist);
+    var armReach = h.L1 + h.L2 - .013;
+    if (distance > armReach) shoulder = add3(shoulder,mul3(stretch,(distance-armReach)/distance));
+    var ik = solveIK(shoulder,wrist,h.L1,h.L2,motion.pole);
+    // 从真实肘肩轴延伸到屏幕边缘，避免袖管朝向与上臂关节脱节。
+    var direction = norm3(sub3(shoulder,ik.elbow));
+    var nearSleeve = add3(shoulder,mul3(direction,.46));
+    setLimb(arm.upper,nearSleeve,ik.elbow);
+    setLimb(arm.fore,ik.elbow,ik.wrist);
   };
+
+  function playerStroke(snap, input, side) {
+    if (snap.playerStroke) return snap.playerStroke;
+    var target = input?.calibrated && input.target;
+    var technique = target?.technique;
+    if (!technique || target.quality <= .14 || technique.kind === 'block' || technique.speed < .62)
+      return null;
+    // 实时体感只用来推断肩肘阶段，拍面继续由标定过的手骨骼控制。
+    var v = snap.paddle.v;
+    var handVelocity = side*v[0];
+    var wind = v[2] > .29 || (handVelocity > .28 && v[2] > -.15);
+    var phase = wind ? .26 : clamp(.56-handVelocity*.034-v[2]*.04,.46,.78);
+    return {kind:technique.kind,side:technique.side,phase:phase,tracked:true};
+  }
+
+  function activeStroke(state, planned, dt) {
+    state.swing += dt;
+    if (planned) return planned;
+    if (state.swing < .27 && state.stroke) {
+      return {kind:state.stroke.kind,side:state.stroke.side,phase:.56+.44*state.swing/.27};
+    }
+    return null;
+  }
 
   Scene3D.prototype._posePlayer = function (hum, stance, paddle, snap, stroke, side, dt, toss) {
     var state = hum.state;
-    state.swing += dt;
+    stroke = activeStroke(state,stroke,dt);
     state.toss = toss ? Math.max(0, state.toss > .45 ? 0 : state.toss + dt) : state.toss + dt;
-    if (!stroke && state.swing < .27 && state.stroke) {
-      stroke = Object.assign({phase:.56 + .44*state.swing/.27},state.stroke);
-    }
     var p = paddle.p;
     hum.root.position.set(stance.x, 0, stance.z);
     state.crouch = lerp(state.crouch, clamp((1.08 - p[1]) * 1.35, 0, .60), 1-Math.exp(-dt*9));
@@ -1006,10 +1069,10 @@
     this._posePlayer(this.ai, stance, snap.aiPaddle, snap, stroke, hand, dt, tossing);
   };
 
-  Scene3D.prototype._updatePlayerAvatar = function (snap, dt) {
+  Scene3D.prototype._updatePlayerAvatar = function (snap, input, dt) {
     if (!this.avatar.root.visible) return;
     var side = snap.playerHand === 'left' ? -1 : 1;
-    this._posePlayer(this.avatar,snap.playerStance,snap.paddle,snap,snap.playerStroke,side,dt,snap.rules.state === 'toss' && snap.rules.server === 'player');
+    this._posePlayer(this.avatar,snap.playerStance,snap.paddle,snap,playerStroke(snap,input,side),side,dt,snap.rules.state === 'toss' && snap.rules.server === 'player');
   };
 
   /* 每帧调用：snap = match.snapshot()，input = pipeline.step(dt)，events = match.step() */
@@ -1022,7 +1085,7 @@
     this._updateReceiveMarker(snap.assistGuide);
     this._updateFirstPersonArm(snap, input, dt);
     this._updateOpponent(snap, dt);
-    this._updatePlayerAvatar(snap, dt);
+    this._updatePlayerAvatar(snap, input, dt);
     // 连续掉帧（核显 / 软件渲染）时自动降级，保住可玩帧率
     if (!this.perf.degraded) {
       this.perf.slow = dt > 0.042 ? this.perf.slow + 1 : Math.max(0, this.perf.slow - 2);
@@ -1063,6 +1126,7 @@
     Scene3D: Scene3D,
     solveIK: solveIK,
     swingEnvelope: swingEnvelope,
+    strokeKinematics: strokeKinematics,
     VERSION: '1.0.0'
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = NS.render3d;

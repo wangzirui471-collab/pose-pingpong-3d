@@ -1,28 +1,59 @@
-/* Character-specific sculpts, albedo projection and hair for the three athletes. */
+/* 球员头部塑形、面部贴图投影与发型。 */
 ;(function (G) {
   'use strict';
 
   var appearance = {
     wang: {
       center:.537, eyeSpacing:.137, tint: 0xd5a68c,
-      width:1.010, jaw:.898, height:1.052, cheek:.0038, nose:.0035,
-      temple: .97, chin:.0035, brow:-.0030, smile:.0010, ear:.93,
+      width:1.006, jaw:.928, height:1.034, cheek:.0046, nose:.0041,
+      temple: .99, chin:.0027, brow:-.0024, smile:.0010, ear:.93,
+      bridge:.0019, back:.0018, lowerFace:.0013, chinWidth:.97, lipClosure:.66,
       scanY:[.998,.923,.830,.730,.624,.474,.418,.297,.022],
-      hair:{width:.094,height:.110,depth:.114,edge:1.23,side:1.72,nape:.27,part:.26,sweep:.31,volume:.0065}
+      hair:{width:.096,height:.108,depth:.114,edge:1.19,side:1.67,nape:.20,part:.18,sweep:.24,volume:.0064,fringe:.035}
     },
     harimoto: {
       center:.520, eyeSpacing:.136, tint: 0xce987e,
-      width:1.056, jaw:1.084, height:.979, cheek:.0063, nose:-.0025,
-      temple:1.04, chin:-.0018, brow:-.002, smile:.0042, ear:.98,
+      width:1.053, jaw:1.058, height:.985, cheek:.0072, nose:-.0031,
+      temple:1.04, chin:-.0012, brow:-.002, smile:.0031, ear:.98,
+      bridge:.0015, back:.0025, lowerFace:-.0012, chinWidth:.98, lipClosure:.63,
       scanY:[.998,.912,.836,.724,.628,.479,.420,.308,.050],
-      hair:{width:.094,height:.104,depth:.116,edge:1.29,side:1.76,nape:.25,part:.04,sweep:-.64,volume:.0057}
+      hair:{width:.097,height:.107,depth:.117,edge:1.31,side:1.74,nape:.19,part:.033,sweep:-.40,volume:.0061,fringe:.038}
     },
     fan: {
       center:.546, eyeSpacing:.138, tint: 0xc99e83,
-      width:1.085, jaw:1.178, height:.936, cheek:.0072, nose:-.0040,
-      temple:1.07, chin:.0015, brow:.0013, smile:.0023, ear:.95,
+      width:1.069, jaw:1.133, height:.951, cheek:.0078, nose:-.0035,
+      temple:1.07, chin:.0026, brow:.0013, smile:.0016, ear:.95,
+      bridge:.0014, back:-.0018, lowerFace:.0021, chinWidth:1.012, lipClosure:.65,
       scanY:[.998,.896,.817,.711,.621,.470,.408,.308,.034],
-      hair:{width:.091,height:.100,depth:.109,edge:.94,side:1.53,nape:.16,part:.10,sweep:.78,volume:.0059}
+      hair:{width:.091,height:.102,depth:.109,edge:.89,side:1.46,nape:.11,part:.10,sweep:.72,volume:.0062,lift:.0052}
+    },
+    // 正面近景定位五官，侧面及转身镜头校对鼻梁、后脑和发际线。
+    ovtcharov: {
+      center:.501, eyeSpacing:.092, tint:0xc19a85,
+      width:.989, jaw:1.002, height:1.063, cheek:.0016, nose:.0070,
+      temple:1.015, chin:.0038, brow:.0007, smile:.0004, ear:.94,
+      bridge:.0044, back:.0032, lowerFace:.0042, chinWidth:1.03, blinkOffset:.36, edgeMask:true, lipClosure:.57,
+      scanY:[.998,.929,.856,.688,.599,.455,.409,.319,.019],
+      hair:{width:.093,height:.108,depth:.110,edge:.90,side:1.38,nape:.12,part:.09,sweep:-.69,
+        volume:.0090,lift:.0094,fringe:.045,red:.0260,green:.0190,blue:.0150}
+    },
+    sun: {
+      center:.501, eyeSpacing:.108, tint:0xd4a48c,
+      width:.998, jaw:.974, height:.929, cheek:.0095, nose:-.0084,
+      temple:1.016, chin:-.0016, brow:-.0048, smile:.0012, ear:.89,
+      bridge:-.0042, back:.0018, lowerFace:-.0040, chinWidth:.94, blinkOffset:2.04, edgeMask:true, lipClosure:.46,
+      scanY:[.998,.942,.884,.746,.664,.498,.433,.365,.016],
+      hair:{width:.092,height:.106,depth:.111,edge:1.29,side:1.64,nape:.105,part:.046,sweep:.16,
+        volume:.0054,lift:.0044,fringe:.054,red:.0125,green:.0114,blue:.0111}
+    },
+    ma: {
+      center:.512, eyeSpacing:.111, tint:0xcda289,
+      width:.966, jaw:.975, height:1.023, cheek:.0037, nose:.0048,
+      temple:1.006, chin:.0022, brow:-.0021, smile:.0012, ear:1.00,
+      bridge:.0018, back:-.0018, lowerFace:.0020, chinWidth:.98, blinkOffset:3.52, edgeMask:true, lipClosure:.59,
+      scanY:[.998,.970,.911,.750,.643,.484,.412,.319,.021],
+      hair:{width:.091,height:.104,depth:.107,edge:1.04,side:1.44,nape:.12,part:.07,sweep:.57,
+        volume:.0061,lift:.0052,fringe:.055,red:.0148,green:.0128,blue:.0117}
     }
   };
   // 鼻尖、眼睑和唇线单独对齐，避免纹理拉扯五官。
@@ -63,13 +94,17 @@
       var brow = Math.exp(-(((Math.abs(x)-.032)/.023)**2)-(((y+.022)/.014)**2));
       var lips = Math.exp(-((x/.032)**4)-(((y+.111)/.011)**2))*front;
       var shape = profile.width + (profile.jaw-profile.width)*jaw + (profile.temple-1)*temple;
-      var closeLips = (y+.111)*.76*lips;
+      var closeLips = (y+.111)*(profile.lipClosure ?? .76)*lips;
       var corners = profile.smile*Math.min(1,(x/.030)**2)*lips;
       var neckBase = 1-T.MathUtils.smoothstep(y,-.178,-.153);
-      pos[i] = x*(1+(shape-1)*neck)*(1+(profile.ear-1)*outerEar)*(1-.22*neckBase);
-      pos[i+1] = y+(y+.037)*(profile.height-1)*neck-closeLips+corners;
+      var bridge = Math.exp(-((x/.016)**2)-(((y+.046)/.031)**2));
+      var rear = (1-T.MathUtils.smoothstep(z,-.055,.012))*Math.exp(-(((y+.012)/.078)**2));
+      var lowerFace = Math.exp(-(((y+.129)/.038)**2))*front;
+      var chinShape = 1+((profile.chinWidth ?? 1)-1)*lowerChin*front;
+      pos[i] = x*(1+(shape-1)*neck)*(1+(profile.ear-1)*outerEar)*(1-.22*neckBase)*chinShape;
+      pos[i+1] = y+(y+.037)*(profile.height-1)*neck-closeLips+corners-(profile.lowerFace ?? 0)*lowerFace;
       pos[i+2] = z+(profile.nose*nose+profile.cheek*cheeks+profile.chin*lowerChin+
-        profile.brow*brow)*front-.0026*lips;
+        profile.brow*brow+(profile.bridge ?? 0)*bridge)*front-.0026*lips-(profile.back ?? 0)*rear;
       uv[i/3*2] = profile.center+(x/.031)*profile.eyeSpacing;
       uv[i/3*2+1] = scanV(y, profile);
     }
@@ -118,7 +153,7 @@
         var back = Math.max(0, -Math.cos(turn));
         var fringe = style.edge + .07*Math.sin(turn*9+.7) + .038*Math.sin(turn*18);
         var centerPart = style.part * Math.exp(-((Math.sin(turn-.072)/.30)**2));
-        fringe -= centerPart;
+        fringe += (style.fringe ?? 0) * Math.sin(turn*19+.8) * front - centerPart;
         var earArch = .20 * Math.exp(-(((Math.cos(turn)-.02)/.22)**2));
         var nape = back * (style.nape + .026*Math.sin(turn*17+.7));
         var edgeAngle = style.side + nape - (style.side-fringe)*front**1.75 - earArch;
@@ -136,7 +171,8 @@
         intersections.length = 0;
         ray.intersectObject(scalp, false, intersections);
         if (intersections.length) {
-          var thickness = .004 + (.007+style.volume+volume) * (1-along*along);
+          var forelock = (style.lift ?? 0) * front * Math.sin(theta) * (1-along*along);
+          var thickness = .004 + (.007+style.volume+volume) * (1-along*along) + forelock;
           radial.multiplyScalar(.22 - intersections[0].distance + thickness).add(center);
           x = radial.x;
           y = radial.y;
@@ -146,7 +182,7 @@
         hem.push(along);
         uv.push(profile.center + (x/.031)*profile.eyeSpacing, scanV(y, profile));
         var shade = 1 + wave*.13 + grain*.23 + front*.21;
-        colors.push(.0135*shade, .0112*shade, .0100*shade);
+        colors.push((style.red ?? .0135)*shade, (style.green ?? .0112)*shade, (style.blue ?? .0100)*shade);
         if (ring && strand) {
           var end = ring*(strands+1)+strand, start = end-strands-1;
           faces.push(start-1, end-1, end, start-1, end, start);
@@ -165,8 +201,11 @@
     return geo;
   }
 
-  function projectFace(material, tex, clothingSkin, hair, eyelids) {
-    material.customProgramCacheKey = function () { return hair ? 'athlete-hair' : 'athlete-face'; };
+  function projectFace(material, tex, clothingSkin, hair, eyelids, edgeCenter) {
+    var maskEdges = edgeCenter !== undefined;
+    material.customProgramCacheKey = function () {
+      return hair ? 'athlete-hair' : maskEdges ? 'athlete-face-edge-mask' : 'athlete-face';
+    };
     material.onBeforeCompile = function (shader) {
       shader.uniforms.athleteScan = { value: tex };
       shader.uniforms.athleteNeck = { value: clothingSkin };
@@ -189,6 +228,16 @@
           'vec3 lid = sRGBToLinear(texture2D(athleteScan, vAthleteScan+vec2(0.0,.020))).rgb;\n' +
           'scan = mix(scan,lid,eye*athleteBlink);\n';
       }
+      if (maskEdges) {
+        // 纹理越靠近两侧越依赖网格肤色，避免把灰底投影到下颌和耳朵。
+        shader.uniforms.athleteCenter = { value: edgeCenter };
+        shader.fragmentShader = 'uniform float athleteCenter;\n' + shader.fragmentShader;
+        photo += 'float uvDistance = abs(vAthleteScan.x - athleteCenter);\n' +
+          'float uvLimit = mix(.170, .229, smoothstep(.10, .43, vAthleteScan.y));\n' +
+          'float skinHue = smoothstep(.014, .047, scan.r - scan.b);\n' +
+          'float scanEdge = (1.0-smoothstep(uvLimit-.034, uvLimit+.016, uvDistance)) * ' +
+          'mix(1.0, skinHue, smoothstep(.139, .211, uvDistance));\n';
+      }
       var mix = hair
         ? 'float front = smoothstep(0.028, 0.095, vAthletePoint.z);\n' +
           'float dark = 1.0 - smoothstep(0.064, 0.149, scan.r);\n' +
@@ -199,7 +248,8 @@
           'float cheeks = 1.0 - smoothstep(0.058, 0.093, abs(vAthletePoint.x));\n' +
           'float neckJoin = smoothstep(-0.173, -0.144, vAthletePoint.y);\n' +
           'diffuseColor.rgb = mix(athleteNeck, diffuseColor.rgb, neckJoin);\n' +
-          'diffuseColor.rgb = mix(diffuseColor.rgb, scan, frontal * cheeks * neckJoin * 0.98);';
+          'diffuseColor.rgb = mix(diffuseColor.rgb, scan, frontal * cheeks * neckJoin * 0.98' +
+          (maskEdges ? ' * scanEdge' : '') + ');';
       shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>',
         '#include <color_fragment>\n' + photo + mix);
     };
@@ -224,14 +274,14 @@
     faceMat.roughness = .93;
     faceMat.metalness = 0;
     var lids = {value:0};
-    projectFace(faceMat,asset.texture,skin.color,false,lids);
+    projectFace(faceMat, asset.texture, skin.color, false, lids, profile.edgeMask ? profile.center : undefined);
     var hairMat = new T.MeshStandardMaterial({ vertexColors: true, roughness: .82, side: T.DoubleSide, alphaTest: .48 });
     projectFace(hairMat, asset.texture, skin.color, true);
 
     var group = new T.Group();
     group.name = id + ' head';
     group.userData.faceTexture = asset.texture;
-    var offset = id === 'fan' ? .74 : id === 'wang' ? 1.51 : 2.62;
+    var offset = profile.blinkOffset ?? (id === 'fan' ? .74 : id === 'wang' ? 1.51 : 2.62);
     group.userData.updateExpression = function (t) {
       var clock=(t+offset)%4.27;
       var doubleBlink=(Math.floor((t+offset)/4.27)%3)===2;

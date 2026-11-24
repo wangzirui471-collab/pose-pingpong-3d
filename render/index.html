@@ -169,7 +169,16 @@ body.lobby #brand,body.lobby #top,body.lobby #bottom,body.lobby #hint,body.lobby
 .competitor small {opacity:.7;font-size:9px;margin-left:2px;}
 .lobby-opponent {display:block;margin:0 0 19px;}
 .lobby-opponent > span {display:block; margin:0 0 7px;color:#e8cbbd;font-size:12px;}
-.opponents {display:flex;gap:7px;flex-wrap:wrap;}
+.opponents {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;max-width:345px;}
+.lobby-opponent .opponent-label {margin-top:11px;}
+.opponent-choice[data-player] {min-height:38px;}
+@media (max-height:540px) and (min-width:621px) {
+  #lobby {width:min(530px,64vw);}
+  #lobby h1 {font-size:clamp(42px,6vw,66px);margin:11px 0 15px;}
+  #lobby h1 br {display:none;}
+  #lobby [aria-label="选择对手"] {max-width:none;grid-template-columns:repeat(4,minmax(0,1fr));}
+  #lobby .opponent-choice {min-width:0;}
+}
 .opponent-choice {display:grid;gap:3px;min-width:109px;padding:8px 10px;text-align:left;background:#211b24db;border:1px solid #dec3c151;border-radius:7px;font-size:15px;font-weight:800;}
 .opponent-choice small {font-size:10px;color:var(--muted);font-weight:600;}
 .opponent-choice[aria-pressed=true] {background:#4a292e;border-color:#f2c78f;}
@@ -201,7 +210,7 @@ body.lobby #brand,body.lobby #top,body.lobby #bottom,body.lobby #hint,body.lobby
 <header id="brand" class="ui"><i aria-hidden="true" class="brand-mark"></i><span>体感乒乓</span></header>
 <section id="top" class="ui panel" aria-label="比分">
   <div class="score-card">
-    <div class="competitor player"><span>樊振东 <small>你</small></span><strong id="sp">0</strong></div>
+    <div class="competitor player"><span><span id="s_player">樊振东</span> <small>你</small></span><strong id="sp">0</strong></div>
     <span class="separator" aria-hidden="true">·</span>
     <div class="competitor ai"><span id="s_opponent">王楚钦</span><strong id="sa">0</strong></div>
   </div>
@@ -211,10 +220,17 @@ body.lobby #brand,body.lobby #top,body.lobby #bottom,body.lobby #hint,body.lobby
   <div class="lobby-kicker"><span></span> 单打挑战</div>
   <h1 id="lobby_title">体感<br>乒乓<span>.</span></h1>
   <div class="lobby-opponent">
-    <span>你操控樊振东</span>
-    <div class="opponents" aria-label="选择对手">
+    <span>选择球员</span>
+    <div class="opponents" role="group" aria-label="选择球员">
+      <button type="button" class="opponent-choice" data-player="fan" aria-pressed="true">樊振东</button>
+      <button type="button" class="opponent-choice" data-player="ma" aria-pressed="false">马龙</button>
+    </div>
+    <span class="opponent-label">选择对手</span>
+    <div class="opponents" role="group" aria-label="选择对手">
       <button class="opponent-choice" data-opponent="wang" aria-pressed="true">王楚钦 <small>左手持拍</small></button>
-      <button class="opponent-choice" data-opponent="harimoto" aria-pressed="false">张本智和 <small>右手持拍</small></button>
+      <button class="opponent-choice" data-opponent="harimoto" aria-pressed="false">张本智和 <small>近台快攻</small></button>
+      <button class="opponent-choice" data-opponent="ovtcharov" aria-pressed="false">奥恰洛夫 <small>侧旋发球</small></button>
+      <button class="opponent-choice" data-opponent="sun" aria-pressed="false">孙颖莎 <small>快速衔接</small></button>
     </div>
   </div>
   <div class="lobby-buttons"><button class="start-match" id="b_start">上台对打 <i aria-hidden="true">↗</i></button><button class="control" id="b_live">连接感知台</button></div>

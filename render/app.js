@@ -8,7 +8,9 @@
   var pipe = new PP.pipeline.Pipeline({match:match,part:playerHand});
   var mock = new PP.source.MockSource({ hz: 60 });
   var input = { mode: 'keyboard', hand: playerHand, move: [0, 0], stance: null, assist: true, autoServe:true, servePicking:false };
-  var opponents = { wang:'王楚钦', harimoto:'张本智和' }, opponent = 'wang';
+  var players = { fan:'樊振东', ma:'马龙' };
+  var opponents = { wang:'王楚钦', harimoto:'张本智和', ovtcharov:'奥恰洛夫', sun:'孙颖莎' };
+  var opponent = 'wang';
   var chordTimer = null, chord = null, serveOptionsOpen = false;
   var chordKeys = new Set(['KeyW', 'KeyS', 'KeyA', 'KeyD', 'KeyF']);
   var touchServe = new Set();
@@ -224,6 +226,15 @@
     }
   }
 
+  function selectPlayer(key) {
+    if (!Object.hasOwn(players,key) || !match.setPlayer(key)) return;
+    scene.setPlayer(key);
+    for (var button of document.querySelectorAll('[data-player]')) {
+      button.setAttribute('aria-pressed',button.dataset.player === key);
+    }
+    setText('s_player',players[key]);
+  }
+
   function selectOpponent(key) {
     if (!Object.hasOwn(opponents, key) || !match.setOpponent(key)) return;
     opponent = key;
@@ -316,6 +327,9 @@
     else button.onclick = pickServe;
   }
   $('b_serve_commit').onclick = function () { serve(PP.court.serveVariant(touchServe)); this.blur(); };
+  for (var pick of document.querySelectorAll('[data-player]')) {
+    pick.onclick = function () { selectPlayer(this.dataset.player); };
+  }
   for (var button of document.querySelectorAll('[data-opponent]')) {
     button.onclick = function () { selectOpponent(this.dataset.opponent); };
   }
@@ -578,7 +592,7 @@
     for (var event of events) {
       if (event.type === 'hit' || event.type === 'serve') {
         if (event.type === 'hit' && event.by === 'player' && !event.serveType && chord?.action === 'return') clearChord();
-        var hitLabel = (event.by === 'player' ? '樊振东' : opponents[opponent]) + ' · ' + label(event);
+        var hitLabel = (event.by === 'player' ? players[match.playerKey] : opponents[opponent]) + ' · ' + label(event);
         setText('s_last', hitLabel);
         log(hitLabel);
       } else if (event.type === 'swing_miss') {
@@ -590,7 +604,7 @@
       } else if (event.type === 'bounce' && event.edge) {
         setText('s_last', '有效擦边球');
       } else if (event.type === 'point') {
-        toast(event.winner === 'player' ? '樊振东得分' : opponents[opponent] + '得分',
+        toast((event.winner === 'player' ? players[match.playerKey] : opponents[opponent]) + '得分',
           event.winner === 'ai' ? event.reason.replace('对方漏接', '你漏接') : event.reason);
       } else if (event.type === 'over') {
         setText('over_title', event.winner === 'player' ? '你赢了' : opponents[opponent] + '获胜');

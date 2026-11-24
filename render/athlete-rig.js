@@ -7,9 +7,12 @@
   }
 
   var uniforms = {
-    wang:{colors:['#b4222b','#650d1f'],stripe:['#f4be5b','#dc7528','#7c1326'],name:'WANG C.Q.',country:'CHN'},
-    harimoto:{colors:['#155491','#121b3d'],stripe:['#61abd8','#2776b5','#1a4282'],name:'HARIMOTO T.',country:'JPN'},
-    fan:{colors:['#142235','#10151f'],stripe:['#5a9ed6','#214a95','#a83e75'],name:'FAN Z.D.',country:'CHN'}
+    wang:{colors:['#c72432','#8c1829'],stripe:['#f1b659','#e95d51','#ae2034'],name:'WANG C.Q.',country:'CHN'},
+    harimoto:{colors:['#4564ba','#283b8d'],stripe:['#e5e6eb','#5169b6','#3a55a5'],name:'HARIMOTO T.',country:'JPN'},
+    fan:{colors:['#222427','#121317'],stripe:['#b29b62','#3e3b32','#655838'],name:'FAN Z.D.',country:'CHN'},
+    ma:{colors:['#1d4da9','#152e69'],stripe:['#f059b0','#a82582','#2154b0'],name:'MA LONG',country:'CHN'},
+    sun:{colors:['#24569b','#121d46'],stripe:['#70b9d3','#254477','#284b92'],name:'SUN YINGSHA',country:'CHN'},
+    ovtcharov:{colors:['#25538b','#172b54'],stripe:['#e2b755','#315e9a','#172f5a'],name:'D. OVTCHAROV',country:'GER'}
   };
 
   function jerseyAtlas(T,id) {
@@ -32,6 +35,12 @@
       g.fill();
     }
     function flag(x,y) {
+      if (style.country==='GER') {
+        ['#171719','#d33135','#edbc39'].forEach(function (color, i) {
+          g.fillStyle=color; g.fillRect(x,y+10*i,44,10);
+        });
+        return;
+      }
       g.fillStyle=style.country==='JPN' ? '#f6f2ee' : '#d52832';
       g.fillRect(x,y,44,29);
       if (style.country==='JPN') {
@@ -51,22 +60,51 @@
       ground.addColorStop(1,style.colors[1]);
       g.fillStyle=ground; g.fillRect(0,0,512,640);
       if (id==='wang') {
-        stripe([[0,473],[83,452],[208,545],[512,410],[512,449],[208,618],[64,510],[0,518]],style.stripe[1]);
-        stripe([[0,499],[100,484],[232,573],[512,455],[512,472],[218,598],[86,506],[0,525]],style.stripe[0]);
-        stripe([[0,0],[202,0],[170,34],[0,125]],style.stripe[2]);
-        stripe([[512,0],[314,0],[345,33],[512,116]],style.stripe[2]);
+        stripe([[0,0],[185,0],[151,40],[70,80],[0,105]],style.stripe[2]);
+        stripe([[512,0],[326,0],[354,46],[439,82],[512,112]],style.stripe[2]);
+        stripe([[0,483],[121,488],[218,551],[512,429],[512,480],[214,615],[83,528],[0,524]],style.stripe[1]);
+        for (var line=0;line<7;line++) {
+          g.strokeStyle=line%3===0 ? '#ffe66d8c' : '#ef9e6188'; g.lineWidth=2;
+          g.beginPath(); g.moveTo(15,476+line*10);
+          g.bezierCurveTo(150,422+line*12,210,630+line*3,492,447+line*9); g.stroke();
+        }
       } else if (id==='harimoto') {
-        stripe([[0,0],[184,0],[82,135],[57,381],[0,542]],style.stripe[2]);
-        stripe([[512,0],[327,0],[444,116],[471,384],[512,506]],style.stripe[2]);
-        stripe([[20,477],[124,422],[213,497],[389,404],[512,365],[512,401],[393,438],[222,536],[122,453],[0,532]],style.stripe[1]);
-        stripe([[0,62],[117,12],[91,47],[0,115]],style.stripe[0]);
-        stripe([[512,65],[399,14],[425,54],[512,112]],style.stripe[0]);
+        stripe([[0,0],[188,0],[99,108],[72,219],[0,240]],style.stripe[2]);
+        stripe([[512,0],[330,0],[423,110],[448,220],[512,242]],style.stripe[2]);
+        stripe([[0,158],[64,177],[82,202],[0,187]],style.stripe[0]);
+        stripe([[512,158],[448,177],[430,202],[512,187]],style.stripe[0]);
+        stripe([[0,430],[190,521],[512,361],[512,396],[185,546],[0,457]],style.stripe[1]);
+      } else if (id==='ma') {
+        stripe([[0,0],[190,0],[120,72],[48,212],[0,207]],style.stripe[2]);
+        var magenta=g.createLinearGradient(472,6,142,402);
+        magenta.addColorStop(0,style.stripe[0]); magenta.addColorStop(.38,style.stripe[1]);
+        magenta.addColorStop(1,'#253e92');
+        stripe([[512,0],[321,0],[270,128],[92,306],[240,412],[400,264],[512,218]],magenta);
+        for (var thread=0;thread<7;thread++) {
+          var dy=thread*11;
+          g.strokeStyle='rgba(249,151,226,.23)'; g.lineWidth=2.5;
+          g.beginPath(); g.moveTo(156,329+dy);
+          g.bezierCurveTo(311,240+dy,384,118+dy,497,89+dy); g.stroke();
+        }
+      } else if (id==='sun') {
+        stripe([[0,0],[194,0],[114,56],[67,188],[0,229]],style.stripe[2]);
+        stripe([[512,0],[319,0],[407,58],[447,194],[512,229]],style.stripe[2]);
+        stripe([[0,107],[135,52],[203,84],[512,65],[512,123],[194,135],[128,106],[0,158]],style.stripe[1]);
+        stripe([[0,126],[123,70],[186,96],[512,85],[512,92],[182,105],[125,80],[0,139]],style.stripe[0]);
+      } else if (id==='ovtcharov') {
+        stripe([[0,0],[164,0],[117,51],[50,183],[0,207]],style.stripe[1]);
+        stripe([[512,0],[348,0],[395,51],[462,183],[512,207]],style.stripe[1]);
+        stripe([[0,159],[55,146],[62,161],[0,179]],style.stripe[0]);
+        stripe([[512,159],[457,146],[450,161],[512,179]],style.stripe[0]);
+        stripe([[0,317],[72,353],[194,640],[140,640],[46,424],[0,401]],style.stripe[2]);
+        stripe([[512,317],[440,353],[318,640],[372,640],[466,424],[512,401]],style.stripe[2]);
       } else {
-        stripe([[0,398],[179,488],[512,330],[512,386],[183,546],[0,484]],style.stripe[1]);
-        stripe([[0,467],[169,533],[512,390],[512,405],[163,561],[0,492]],style.stripe[2]);
-        stripe([[0,525],[225,579],[512,442],[512,461],[231,601],[0,556]],style.stripe[0]);
-        stripe([[40,0],[116,0],[19,211],[0,232],[0,170]],style.stripe[1]);
-        stripe([[392,0],[471,0],[512,134],[512,188]],style.stripe[1]);
+        stripe([[0,0],[187,0],[113,51],[0,116]],style.stripe[1]);
+        stripe([[512,0],[324,0],[402,51],[512,116]],style.stripe[1]);
+        stripe([[0,38],[177,6],[165,16],[0,51]],style.stripe[0]);
+        stripe([[512,39],[335,7],[347,17],[512,53]],style.stripe[0]);
+        stripe([[0,389],[184,497],[512,369],[512,391],[186,520],[0,416]],style.stripe[2]);
+        stripe([[0,448],[181,548],[512,414],[512,427],[180,564],[0,465]],style.stripe[1]);
       }
       g.lineWidth=1;
       g.strokeStyle='#ffffff11';
@@ -107,14 +145,31 @@
     var colors = new Uint8Array(fabric.length*3);
     var accent = new T.Color(style.trim), cloth = new T.Color();
     var bodyWidth = style.bodyWidth || 1;
+    var stature = style.stature || 1;
+    var hipWidth = style.hipWidth || 1;
+    var shoulderWidth = (style.shoulders || .1866) / .1866;
+    var shortTrim = new T.Color(style.shortTrim || shorts.color);
+    var sole = new T.Color(style.sole || 0xd3d5d6);
+    var shoeTrim = new T.Color(style.shoeTrim || 0xa1afbf);
+
+    // 顶点和绑定点共用比例变换，保持肩、髋、腕部连续。
+    function shape(x, y, z) {
+      var torso = 1-T.MathUtils.smoothstep(Math.abs(x),.185,.30);
+      var upper = T.MathUtils.smoothstep(y,1.16,1.33);
+      var hips = T.MathUtils.smoothstep(y,.57,.83)*(1-T.MathUtils.smoothstep(y,.96,1.07));
+      var waist = T.MathUtils.smoothstep(y,.86,1.10);
+      var width = ((bodyWidth-1)*waist*(1-upper)+(shoulderWidth-1)*upper)*torso;
+      return [x*(1+width+(hipWidth-1)*hips),y*stature,z*(1+(bodyWidth-1)*torso*waist*.47)];
+    }
     for (var i=0;i<fabric.length;i++) {
       var region = regions[i], j=i*3;
       var x=positions[j], y=positions[j+1], z=positions[j+2];
       var color=materialColors[region];
+      var point = shape(x,y,z);
+      positions[j] = point[0];
+      positions[j+1] = point[1];
+      positions[j+2] = point[2];
       if (region===1) {
-        var torso = 1-T.MathUtils.smoothstep(Math.abs(x),.18,.27);
-        positions[j] *= 1+(bodyWidth-1)*torso;
-        positions[j+2] *= 1+(bodyWidth-1)*torso*.38;
         var seam = Math.abs(x)-.095+(y-1.13)*(style.character==='wang' ? .27 : -.28);
         var front = T.MathUtils.smoothstep(z,.017,.075);
         var sleeve = T.MathUtils.smoothstep(Math.abs(x),.190,.242);
@@ -122,6 +177,15 @@
         var panel = Math.max(Math.exp(-((seam/.018)**2))*.23,
           Math.exp(-((chest/.035)**2))*front*.38,sleeve*.18);
         color=cloth.copy(color).lerp(accent,panel);
+      } else if (region===2) {
+        var piping = T.MathUtils.smoothstep(Math.abs(x),.165,.208)*.72;
+        var hem = 1-T.MathUtils.smoothstep(y,.64,.662);
+        color=cloth.copy(color).lerp(shortTrim,Math.max(piping,hem*.53));
+      } else if (region===4) {
+        var outsole = 1-T.MathUtils.smoothstep(y,.017,.027);
+        var sidePanel = T.MathUtils.smoothstep(Math.abs(Math.abs(x)-.191),.030,.053);
+        var saddle = Math.exp(-(((z-.059)/.047)**2)) * sidePanel;
+        color=cloth.copy(color).lerp(shoeTrim,saddle*.81).lerp(sole,outsole);
       }
       colors[j]=Math.round(color.r*fabric[i]);
       colors[j+1]=Math.round(color.g*fabric[i]);
@@ -139,10 +203,11 @@
     materials.onBeforeCompile = function (shader) {
       shader.uniforms.jerseyMap = {value:jerseyMap};
       shader.uniforms.athleteFacing = {value:facing};
-      shader.vertexShader = 'attribute float jerseyZone; uniform float athleteFacing; ' +
+      shader.uniforms.athleteStature = {value:stature};
+      shader.vertexShader = 'attribute float jerseyZone; uniform float athleteFacing; uniform float athleteStature; ' +
         'varying vec3 jerseyPoint; varying float jerseyWeight;\n'+shader.vertexShader;
       shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>',
-        '#include <begin_vertex>\njerseyPoint = position*vec3(athleteFacing,1.0,athleteFacing);\njerseyWeight = jerseyZone;');
+        '#include <begin_vertex>\njerseyPoint = position*vec3(athleteFacing,1.0/athleteStature,athleteFacing);\njerseyWeight = jerseyZone;');
       shader.fragmentShader = 'uniform sampler2D jerseyMap; varying vec3 jerseyPoint; varying float jerseyWeight;\n'+shader.fragmentShader;
       shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>',
         '#include <color_fragment>\n' +
@@ -172,7 +237,10 @@
     mesh.castShadow = mesh.receiveShadow = true;
     root.add(mesh);
     var up = new T.Vector3(0, 1, 0);
-    var local = function (v) { return new T.Vector3(v[0]*facing, v[1], v[2]*facing); };
+    var local = function (v) {
+      var p = shape(v[0],v[1],v[2]);
+      return new T.Vector3(p[0]*facing,p[1],p[2]*facing);
+    };
     var segments = asset.bind.map(function (pair) {
       var start = local(pair[0]), end = local(pair[1]);
       var direction = end.clone().sub(start).normalize();
@@ -186,6 +254,7 @@
     root.updateMatrixWorld(true);
     mesh.bind(new T.Skeleton(segments.map(function (segment) { return segment.bone; })));
     var desired = new T.Vector3(), rotation = new T.Quaternion(), direction = new T.Quaternion();
+    var undoFacing = new T.Quaternion().setFromAxisAngle(up,facing < 0 ? -Math.PI : 0);
 
     function line(index, a, b, preserveLength) {
       var segment = segments[index], bone = segment.bone;
@@ -208,8 +277,10 @@
       },
       torso: function (body) {
         var segment = segments[0];
-        segment.bone.position.copy(segment.start).applyQuaternion(body.quaternion).add(body.position);
-        segment.bone.quaternion.multiplyQuaternions(body.quaternion, segment.base);
+        // 躯干网格与绑定骨骼已转过基准朝向，只施加准备姿势后的旋转。
+        rotation.multiplyQuaternions(body.quaternion,undoFacing);
+        segment.bone.position.copy(segment.start).applyQuaternion(rotation).add(body.position);
+        segment.bone.quaternion.multiplyQuaternions(rotation,segment.base);
       },
       arm: function (side, shoulder, elbow, wrist, towardKnuckles) {
         var index = sideIndex(side);

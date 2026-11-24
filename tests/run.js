@@ -613,6 +613,19 @@ ok('扣杀改选更高的可达击球点', Number.isFinite(previousHeight) && pe
 var peakHit = firstReturn(peakAttack);
 ok('调整击球点后，高弹来球确实用扣杀回击', peakHit.hit?.kind==='smash' && peakHit.hit?.side==='forehand');
 
+section('18. 球员与对手切换');
+var rosterMatch = new PP.match.Match({player:'ma',opponent:'ovtcharov'});
+ok('马龙与奥恰洛夫可直接开局', rosterMatch.snapshot().player === 'ma' &&
+  rosterMatch.snapshot().opponent === 'ovtcharov' && rosterMatch.snapshot().aiHand === 'right');
+ok('孙颖莎切换后以右手开局', rosterMatch.setOpponent('sun') &&
+  rosterMatch.snapshot().opponent === 'sun' && rosterMatch.snapshot().aiHand === 'right');
+rosterMatch.reset('ai');
+ok('重开保留出场球员、对手与持拍手', rosterMatch.snapshot().player === 'ma' &&
+  rosterMatch.opponent.character === 'sun' && rosterMatch.opponent.hand === 'right');
+ok('非法角色键保留原选择，可切回樊振东与左手王楚钦', !rosterMatch.setPlayer('other') &&
+  !rosterMatch.setOpponent('toString') && rosterMatch.playerKey === 'ma' && rosterMatch.opponentKey === 'sun' &&
+  rosterMatch.setPlayer('fan') && rosterMatch.setOpponent('wang') && rosterMatch.snapshot().aiHand === 'left');
+
 console.log('\n========================================');
 console.log('  PASS ' + pass + '   FAIL ' + fail);
 console.log('========================================');

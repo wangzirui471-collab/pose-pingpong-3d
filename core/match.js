@@ -22,7 +22,8 @@
     opts = opts || {};
     this.difficulty = opts.difficulty || 'normal';
     this.rules = new R.Rules({ firstServer: opts.firstServer || 'player' });
-    this.opponentKey = opts.opponent === 'harimoto' ? 'harimoto' : 'wang';
+    this.opponentKey = Object.hasOwn(A.CHARACTERS,opts.opponent) ? opts.opponent : 'wang';
+    this.playerKey = opts.player === 'ma' ? 'ma' : 'fan';
     this.rng = opts.rng;
     this.opponent = new A.Opponent(this.difficulty, { rng: this.rng, character: this.opponentKey });
     this.playerPaddle = new P.Paddle('player');
@@ -55,9 +56,15 @@
   };
 
   Match.prototype.setOpponent = function (key) {
-    if (key !== 'wang' && key !== 'harimoto') return false;
+    if (!Object.hasOwn(A.CHARACTERS,key)) return false;
     this.opponentKey = key;
     this.opponent = new A.Opponent(this.difficulty, { rng:this.rng, character:key });
+    return true;
+  };
+
+  Match.prototype.setPlayer = function (key) {
+    if (key !== 'fan' && key !== 'ma') return false;
+    this.playerKey = key;
     return true;
   };
 
@@ -162,6 +169,7 @@
                 n: V.copy3(this.playerPaddle.n) },
       aiPaddle: { p: V.copy3(this.opponent.paddle.p), n: V.copy3(this.opponent.paddle.n) },
       opponent: this.opponentKey,
+      player: this.playerKey,
       aiHand: this.opponent.hand,
       serveWaiting: !!this.autoServe,
       serveIn: this.control?.autoServe && !this.autoServe && this.rules.state === 'ready' && this.rules.server === 'player'
