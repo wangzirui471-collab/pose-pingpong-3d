@@ -3,8 +3,11 @@
   var PP = window.PP, K = PP.constants, V = PP.physics, shots = PP.court.PROFILES;
   var $ = function (id) { return document.getElementById(id); };
   var match = new PP.match.Match({ difficulty: 'novice', firstServer: 'player' });
-  var playerHand = 'right';
-  try { if (localStorage.getItem('pp3d-player-hand') === 'left') playerHand = 'left'; } catch (_) {}
+  var playerHand = 'right', playerGrip = 'athlete';
+  try {
+    if (localStorage.getItem('pp3d-player-hand') === 'left') playerHand = 'left';
+    if (localStorage.getItem('pp3d-player-grip') === 'penhold') playerGrip = 'penhold';
+  } catch (_) {}
   var pipe = new PP.pipeline.Pipeline({match:match,part:playerHand});
   var mock = new PP.source.MockSource({ hz: 60 });
   var input = { mode: 'keyboard', hand: playerHand, move: [0, 0], stance: null, assist: true, autoServe:true, servePicking:false };
@@ -25,6 +28,7 @@
   var panel = $('settings'), help = $('help');
   var difficulties = Array.from(document.querySelectorAll('[data-diff]'));
   var handOptions = Array.from(document.querySelectorAll('[data-player-hand]'));
+  var gripOptions = Array.from(document.querySelectorAll('[data-grip-style]'));
   var handQuick = $('b_hand');
   var techniqueButtons = Array.from(document.querySelectorAll('[data-stroke]'));
   var movementKeys = {
@@ -113,6 +117,17 @@
     clearKeys();
     try { localStorage.setItem('pp3d-player-hand',hand); } catch (_) {}
     refreshHandButtons();
+  }
+
+  function refreshGripButtons() {
+    for (var button of gripOptions) button.setAttribute('aria-pressed',button.dataset.gripStyle===playerGrip);
+  }
+
+  function selectGrip(mode) {
+    playerGrip = mode;
+    scene.setPlayerGrip(mode);
+    try { localStorage.setItem('pp3d-player-grip',mode); } catch (_) {}
+    refreshGripButtons();
   }
 
   function updateControls() {
@@ -298,6 +313,8 @@
 
   try {
     scene = new PP.render3d.Scene3D($('gl'), { view: 'first' });
+    scene.setPlayerGrip(playerGrip);
+    refreshGripButtons();
     setText('s_view', '第一人称');
     scene.setIntro(true);
   } catch (error) {
@@ -366,6 +383,9 @@
   bindTouchButton(handQuick,function () { setHand(input.hand === 'left' ? 'right' : 'left'); });
   for (var button of handOptions) {
     bindTouchButton(button,function () { setHand(this.dataset.playerHand); });
+  }
+  for (var button of gripOptions) {
+    bindTouchButton(button,function () { selectGrip(this.dataset.gripStyle); });
   }
   $('b_calib').onclick = function () { pipe.recalibrate(); toast('站姿标定', '站直并保持自然准备姿势'); };
   $('b_forefit').onclick = function () { capture('forehand'); };

@@ -251,6 +251,10 @@ body.lobby #brand,body.lobby #top,body.lobby #bottom,body.lobby #hint,body.lobby
         <button type="button" class="tool" data-player-hand="left" aria-pressed="false">左手持拍</button>
         <button type="button" class="tool" data-player-hand="right" aria-pressed="true">右手持拍</button>
       </div>
+      <div class="strip" style="margin-top:6px;" role="group" aria-label="玩家持拍方式">
+        <button type="button" class="tool" data-grip-style="athlete" aria-pressed="true">球员横板</button>
+        <button type="button" class="tool" data-grip-style="penhold" aria-pressed="false">直板练习</button>
+      </div>
       <div class="strip" style="margin-top:6px;"><button id="b_input" class="tool">键鼠</button><button id="b_source" class="tool">切到感知台</button><button id="b_mirror" class="tool" aria-pressed="false">左右镜像</button></div>
       <div class="strip" style="margin-top:6px;"><button id="b_calib" class="tool">重新标定站姿</button><button id="b_forefit" class="tool">记录正手</button><button id="b_backfit" class="tool">记录反手</button></div>
       <p id="s_fit" role="status"></p>
@@ -4237,9 +4241,10 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
     g.lookAt(wp.x + n[0], wp.y + n[1], wp.z + n[2]);
   }
 
-  function buildGrip(skin,penhold,relaxed) {
+  function buildGrip(skin,penhold,relaxed,style) {
     var grip = new T.Group();
     grip.name = relaxed ? 'balance-hand' : penhold ? 'penhold-grip' : 'shakehand-grip';
+    grip.userData.style = style;
     function cushion(name,p,r,angle) {
       var mesh = new T.Mesh(new T.SphereGeometry(1,20,14),skin);
       mesh.name = name;
@@ -4249,7 +4254,10 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
       grip.add(mesh);
     }
     function finger(name,joints,radius) {
-      var curve = new T.CatmullRomCurve3(joints.map(V3));
+      var lift = style?.[name] || 0;
+      var curve = new T.CatmullRomCurve3(joints.map(function (p,i) {
+        return new T.Vector3(p[0],p[1]+lift*(i/(joints.length-1))**2,p[2]);
+      }));
       var segments = 16, sides = 10, positions = [], triangles = [];
       var axes = curve.computeFrenetFrames(segments,false);
       for (var i=0;i<=segments;i++) {
@@ -4273,7 +4281,7 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
       var digit = new T.Mesh(surface,skin);
       digit.name = name;
       grip.add(digit);
-      var tip=joints[joints.length-1];
+      var tip=arr(curve.getPoint(1));
       cushion(name+'-tip',tip,[radius*.42,radius*.40,radius*.41]);
     }
     if (relaxed) {
@@ -4292,21 +4300,21 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
           [x*.94,end-.009,.016],[x*.81,end-.008,.031]],digit[3]);
       }
     } else if (penhold) {
-      cushion('wrist-pad',[-.066,-.116,-.025],[.025,.019,.021],-.21);
-      cushion('palm',[-.046,-.105,-.023],[.027,.027,.020],-.28);
-      cushion('thumb-pad',[-.039,-.096,.001],[.017,.018,.019],-.31);
-      // 拇指和食指绕过拍肩再捏柄，后三指贴在背面。
-      finger('thumb',[[-.057,-.097,-.012],[-.046,-.089,.004],[-.027,-.075,.020],[-.009,-.078,.017]],.0101);
-      finger('index',[[-.043,-.095,.003],[-.029,-.094,.020],[-.006,-.092,.023],[.020,-.096,.018],[.022,-.109,.009]],.0088);
-      finger('middle',[[-.035,-.097,-.027],[-.019,-.081,-.025],[.004,-.066,-.018],[.024,-.060,-.010]],.0084);
-      finger('ring',[[-.034,-.111,-.031],[-.016,-.097,-.030],[.004,-.088,-.025],[.026,-.085,-.015]],.0077);
-      finger('little',[[-.041,-.124,-.030],[-.024,-.115,-.030],[-.007,-.109,-.026],[.009,-.109,-.018]],.0068);
+      cushion('wrist-pad',[-.066,-.116,-.025],[.024,.018,.019],-.21);
+      cushion('palm',[-.050,-.108,-.025],[.023,.028,.017],-.26);
+      cushion('thumb-pad',[-.044,-.094,-.001],[.014,.018,.015],-.32);
+      // 直板像拿笔，拇指和食指从拍肩两侧轻扣，后三指自然搭在拍背。
+      finger('thumb',[[-.057,-.098,-.014],[-.046,-.086,.005],[-.032,-.071,.018],[-.018,-.066,.017],[-.010,-.071,.016]],.0092);
+      finger('index',[[-.046,-.099,.002],[-.029,-.095,.021],[-.005,-.091,.023],[.019,-.096,.019],[.022,-.110,.012]],.0081);
+      finger('middle',[[-.041,-.104,-.027],[-.027,-.083,-.025],[-.015,-.064,-.021],[-.005,-.048,-.016],[.004,-.043,-.014]],.0080);
+      finger('ring',[[-.039,-.115,-.032],[-.023,-.099,-.029],[-.006,-.082,-.023],[.013,-.073,-.017],[.025,-.069,-.015]],.0075);
+      finger('little',[[-.043,-.126,-.031],[-.030,-.115,-.031],[-.018,-.102,-.028],[-.004,-.093,-.024],[.010,-.089,-.018]],.0066);
     } else {
       cushion('wrist-pad',[-.057,-.145,-.012],[.023,.019,.020],-.12);
       cushion('palm',[-.036,-.130,-.010],[.019,.032,.022],-.12);
-      cushion('thumb-pad',[-.032,-.112,.009],[.014,.021,.013],-.30);
+      cushion('thumb-pad',[-.032,-.112,.009],[.012,.019,.012],-.30);
       // 横板食指沿背面，其他三指分开绕过拍柄。
-      finger('thumb',[[-.042,-.122,.012],[-.025,-.102,.021],[-.014,-.084,.020],[-.007,-.074,.016]],.0090);
+      finger('thumb',[[-.042,-.121,.012],[-.027,-.103,.019],[-.016,-.086,.017],[-.008,-.070,.014]],.0085);
       finger('index',[[-.038,-.115,-.025],[-.018,-.092,-.022],[.009,-.076,-.019],[.035,-.058,-.011]],.0078);
       finger('middle',[[-.029,-.115,.019],[-.009,-.116,.022],[.019,-.119,.020],[.025,-.120,.004],[.022,-.122,-.014]],.0084);
       finger('ring',[[-.032,-.131,.017],[-.010,-.133,.023],[.018,-.135,.020],[.025,-.137,.006],[.022,-.139,-.012]],.0078);
@@ -4337,19 +4345,39 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
     };
   }
 
+  function gripKinematics(stroke,side,facing,penhold,motion,style) {
+    motion = motion || strokeKinematics(stroke,side,facing);
+    var mirror = -facing*side;
+    var phase = stroke ? clamp(stroke.phase,0,1) : 0;
+    // 反手在引拍时翻向另一面胶皮，随挥结束后转回正手准备位。
+    var turn = stroke?.side === 'backhand'
+      ? Math.min(clamp(phase/.42,0,1),clamp((1-phase)/.23,0,1)) : 0;
+    turn = turn*turn*(3-2*turn);
+    var outward = (penhold ? .66 : .53)+.34*motion.coil-.23*motion.follow+(style?.fore || 0);
+    var inward = -(penhold ? .34 : .23)-.11*motion.coil+.13*motion.follow+(style?.back || 0);
+    return {
+      mirror:mirror,
+      roll:mirror*lerp(outward,inward,turn),
+      turnover:turn ? mirror*Math.PI*turn : 0
+    };
+  }
+
   function placeGrip(racket,normal,side,facing,stroke,grip,penhold,motion) {
     var n = arr(normal || [0,0,facing]);
+    var pose = gripKinematics(stroke,side,facing,penhold,motion,grip.userData.style);
     var blend = stroke?.tracked ? 0 : motion.faceForward;
-    // 预测挥拍击球时把拍面转向对方半台，同时沿用来球所需的拍面开合。
     var forward = norm3([n[0]*.45,clamp(n[1],-.34,.32),facing]);
-    aimRacket(racket,n.map(function (v,i) { return lerp(v,forward[i],blend); }));
-    var backhand = stroke?.side === 'backhand';
-    var mirror = -facing*side;
-    var tilt = penhold ? (backhand ? .44 : -.19) : (backhand ? .26 : -.10);
-    var wind = (backhand ? -.15 : -.24)*motion.coil;
-    racket.rotateZ(mirror*(tilt + wind + .15*motion.follow));
-    grip.scale.x = mirror;
-    var wrist = penhold ? [-.081*mirror,-.118,-.028] : [-.069*mirror,-.145,-.012];
+    var aimed = n.map(function (v,i) { return lerp(v,forward[i],blend); });
+    if (!stroke?.tracked) {
+      var outward = 1-Math.abs(pose.turnover)/Math.PI;
+      aimed[0] += side*(.14+.32*motion.coil)*(1-blend)*outward;
+    }
+    aimRacket(racket,aimed);
+    // 先调拍头在画面中向内或向外的角度，再随腕转动换击球面。
+    racket.rotateZ(pose.roll);
+    racket.rotateY(pose.turnover);
+    grip.scale.x = pose.mirror;
+    var wrist = penhold ? [-.081*pose.mirror,-.118,-.028] : [-.069*pose.mirror,-.145,-.012];
     return arr(V3(wrist).applyQuaternion(racket.quaternion).add(racket.position));
   }
 
@@ -4446,7 +4474,8 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
     ['foreR','foreL','elbowR','elbowL','handR','handL','shoulderR','shoulderL',
      'kneeR','kneeL','shoeR','shoeL'].forEach(function (k) { parts[k].castShadow = false; });
 
-    parts.grip = buildGrip(skin,penhold);
+    parts.grip = buildGrip(skin,penhold,false,cfg.gripStyle);
+    parts.rackets = {[cfg.grip || 'shakehand']:{racket:parts.racket,grip:parts.grip}};
     if (penhold) parts.penhold = parts.grip;
     parts.racket.add(parts.grip);
     parts.balanceHand = buildGrip(skin,false,true);
@@ -4844,7 +4873,7 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
     var forearm = new T.Mesh(new T.LatheGeometry(section.map(function (row) {
       return new T.Vector2(row[0],row[1]);
     }),26),skin);
-    var racket = buildRacket(penhold), hand = buildGrip(skin,penhold);
+    var racket = buildRacket(penhold), hand = buildGrip(skin,penhold,false,cfg.gripStyle);
     racket.add(hand);
     var group = new T.Group();
     var upper = limb(.041,sleeve,24);
@@ -4854,34 +4883,42 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
     elbow.scale.set(.98,.95,.98);
     elbow.castShadow = false;
     var arm = {upper:upper,upperSkin:upperSkin,elbow:elbow,fore:forearm,
-      hand:hand,racket:racket,group:group,penhold:penhold};
+      hand:hand,racket:racket,group:group,penhold:penhold,skin:skin,
+      rackets:{[cfg.grip || 'shakehand']:{racket:racket,grip:hand}}};
     group.add(upper,upperSkin,elbow,forearm,racket);
     this.scene.add(group);
     return arm;
   };
 
+  // 各球员的腕角与指位是视觉参数，不影响球拍碰撞。
   var roster = {
-    wang: {character:'wang',shirt:0xbb212b,trim:0xe8a750,pants:0x1b1822,skin:0xd8a183,hair:0x171219,
+    wang: {character:'wang',gripStyle:{fore:.064,back:-.028,thumb:-.003,index:.004},
+      shirt:0xbb212b,trim:0xe8a750,pants:0x1b1822,skin:0xd8a183,hair:0x171219,
       bodyWidth:.98,shoulders:.173,headHeight:1.600,stanceDrop:.113,stanceLean:.151,stanceSpread:.198,
       stanceStagger:.098,balance:[.255,.965,.205],shoe:0xf6eeeb,shoeTrim:0x953a40},
-    harimoto: {character:'harimoto',shirt:0x405ab1,trim:0xc9cedd,pants:0x263d8a,skin:0xd9a98e,hair:0x21191a,
+    harimoto: {character:'harimoto',gripStyle:{fore:-.048,back:-.062,thumb:.003,index:.006},
+      shirt:0x405ab1,trim:0xc9cedd,pants:0x263d8a,skin:0xd9a98e,hair:0x21191a,
       bodyWidth:1.015,shoulders:.184,headHeight:1.605,stanceDrop:.129,stanceSpread:.208,stanceLean:.194,
       stanceStagger:.044,balance:[.249,.971,.25],
       shortTrim:0x465c9b,shoe:0xf1eee9,shoeTrim:0x8498ae},
-    fan: {character:'fan',shirt:0x202124,trim:0xab935b,pants:0x181a1e,skin:0xdca989,hair:0x1e1b20,
-      facing:-1,grip:'penhold',bodyWidth:1.085,shoulders:.193,headHeight:1.595,stanceDrop:.135,stanceLean:.174,
+    fan: {character:'fan',gripStyle:{fore:.097,back:.034,thumb:.003,index:-.003},
+      shirt:0x202124,trim:0xab935b,pants:0x181a1e,skin:0xdca989,hair:0x1e1b20,
+      facing:-1,grip:'shakehand',bodyWidth:1.085,shoulders:.193,headHeight:1.595,stanceDrop:.135,stanceLean:.174,
       stanceSpread:.206,stanceStagger:.068,balance:[.272,.972,.240],
       shortTrim:0x38372f,shoe:0xf4efe9,shoeTrim:0x84888b},
-    ma: {character:'ma',shirt:0x1c48a0,trim:0xcc3d97,pants:0x181b31,skin:0xd5a287,hair:0x221c1d,
+    ma: {character:'ma',gripStyle:{fore:.044,back:.023,thumb:-.002,index:.002},
+      shirt:0x1c48a0,trim:0xcc3d97,pants:0x181b31,skin:0xd5a287,hair:0x221c1d,
       facing:-1,grip:'shakehand',bodyWidth:.99,hipWidth:.98,shoulders:.18,headHeight:1.606,
       stanceDrop:.116,stanceSpread:.225,stanceLean:.153,stanceStagger:.102,weightTurn:1.10,
       balance:[.255,.984,.208],shortTrim:0x35496a,
       shoe:0xf3eeef,shoeTrim:0x8e3e87,sole:0xe3d7d5},
-    sun: {character:'sun',shirt:0x1b477d,trim:0x51acc1,sleeveColor:0x459fba,pants:0x181c29,skin:0xe1ac92,hair:0x232022,
+    sun: {character:'sun',gripStyle:{fore:.018,back:-.041,thumb:.006,index:.001},
+      shirt:0x1b477d,trim:0x51acc1,sleeveColor:0x459fba,pants:0x181c29,skin:0xe1ac92,hair:0x232022,
       bodyWidth:.89,hipWidth:.98,shoulders:.156,headHeight:1.606,stature:.924,headScale:.95,armLength:.90,neckWidth:.86,
       stanceDrop:.137,stanceSpread:.177,stanceLean:.181,stanceStagger:.047,weightTurn:.96,
       balance:[.217,.981,.244],shortTrim:0x35436b,shoe:0xcbdc4e,shoeTrim:0x768328,sole:0xb7c940},
-    ovtcharov: {character:'ovtcharov',shirt:0x183e75,trim:0xdbaa47,pants:0x181b26,skin:0xe0a88b,hair:0x3b2a24,
+    ovtcharov: {character:'ovtcharov',gripStyle:{fore:-.034,back:-.084,thumb:-.005,index:-.004},
+      shirt:0x183e75,trim:0xdbaa47,pants:0x181b26,skin:0xe0a88b,hair:0x3b2a24,
       bodyWidth:1.09,hipWidth:1.035,shoulders:.203,headHeight:1.604,stature:1.056,headScale:1.01,
       armLength:1.073,stanceDrop:.146,stanceSpread:.247,stanceLean:.193,stanceStagger:.087,weightTurn:1.12,
       balance:[.289,.957,.216],shortTrim:0x36496b,
@@ -4909,6 +4946,7 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
 
   Scene3D.prototype._buildPlayerAvatar = function () {
     this.players = {};
+    this.playerGrip = 'athlete';
     this.setPlayer('fan');
   };
 
@@ -4925,7 +4963,39 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
     this.avatar = this.players[key].avatar;
     this.arm = this.players[key].arm;
     this.armGroup = this.arm.group;
+    this.setPlayerGrip(this.playerGrip);
     this.setView(this.view);
+  };
+
+  function equipRacket(actor,parent,skin,style,key) {
+    var equipment = actor.rackets[key];
+    if (!equipment) {
+      var penhold = key === 'penhold';
+      var racket = buildRacket(penhold);
+      var grip = buildGrip(skin,penhold,false,style);
+      racket.add(grip);
+      equipment = actor.rackets[key] = {racket:racket,grip:grip};
+    }
+    if (actor.racket !== equipment.racket) {
+      equipment.racket.position.copy(actor.racket.position);
+      equipment.racket.quaternion.copy(actor.racket.quaternion);
+      parent.remove(actor.racket);
+      parent.add(equipment.racket);
+      actor.racket = equipment.racket;
+    }
+    return equipment.grip;
+  }
+
+  Scene3D.prototype.setPlayerGrip = function (mode) {
+    if (mode !== 'athlete' && mode !== 'penhold') return;
+    this.playerGrip = mode;
+    var profile = roster[this.playerKey];
+    var key = mode === 'penhold' ? 'penhold' : profile.grip;
+    var penhold = key === 'penhold';
+    this.avatar.grip = equipRacket(this.avatar,this.avatar.limbs,this.avatar.mats.skin,profile.gripStyle,key);
+    this.avatar.penhold = penhold ? this.avatar.grip : null;
+    this.arm.hand = equipRacket(this.arm,this.arm.group,this.arm.skin,profile.gripStyle,key);
+    this.arm.penhold = penhold;
   };
 
   Scene3D.prototype.setView = function (mode) {
@@ -5219,6 +5289,7 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
     solveIK: solveIK,
     swingEnvelope: swingEnvelope,
     strokeKinematics: strokeKinematics,
+    gripKinematics: gripKinematics,
     VERSION: '1.0.0'
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = NS.render3d;
@@ -5230,8 +5301,11 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
   var PP = window.PP, K = PP.constants, V = PP.physics, shots = PP.court.PROFILES;
   var $ = function (id) { return document.getElementById(id); };
   var match = new PP.match.Match({ difficulty: 'novice', firstServer: 'player' });
-  var playerHand = 'right';
-  try { if (localStorage.getItem('pp3d-player-hand') === 'left') playerHand = 'left'; } catch (_) {}
+  var playerHand = 'right', playerGrip = 'athlete';
+  try {
+    if (localStorage.getItem('pp3d-player-hand') === 'left') playerHand = 'left';
+    if (localStorage.getItem('pp3d-player-grip') === 'penhold') playerGrip = 'penhold';
+  } catch (_) {}
   var pipe = new PP.pipeline.Pipeline({match:match,part:playerHand});
   var mock = new PP.source.MockSource({ hz: 60 });
   var input = { mode: 'keyboard', hand: playerHand, move: [0, 0], stance: null, assist: true, autoServe:true, servePicking:false };
@@ -5252,6 +5326,7 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
   var panel = $('settings'), help = $('help');
   var difficulties = Array.from(document.querySelectorAll('[data-diff]'));
   var handOptions = Array.from(document.querySelectorAll('[data-player-hand]'));
+  var gripOptions = Array.from(document.querySelectorAll('[data-grip-style]'));
   var handQuick = $('b_hand');
   var techniqueButtons = Array.from(document.querySelectorAll('[data-stroke]'));
   var movementKeys = {
@@ -5340,6 +5415,17 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
     clearKeys();
     try { localStorage.setItem('pp3d-player-hand',hand); } catch (_) {}
     refreshHandButtons();
+  }
+
+  function refreshGripButtons() {
+    for (var button of gripOptions) button.setAttribute('aria-pressed',button.dataset.gripStyle===playerGrip);
+  }
+
+  function selectGrip(mode) {
+    playerGrip = mode;
+    scene.setPlayerGrip(mode);
+    try { localStorage.setItem('pp3d-player-grip',mode); } catch (_) {}
+    refreshGripButtons();
   }
 
   function updateControls() {
@@ -5525,6 +5611,8 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
 
   try {
     scene = new PP.render3d.Scene3D($('gl'), { view: 'first' });
+    scene.setPlayerGrip(playerGrip);
+    refreshGripButtons();
     setText('s_view', '第一人称');
     scene.setIntro(true);
   } catch (error) {
@@ -5593,6 +5681,9 @@ window.PP_ATHLETE_MESH = {"bind":[[[0,0.94,0],[0,1.29,0]],[[-0.186613,1.32188139
   bindTouchButton(handQuick,function () { setHand(input.hand === 'left' ? 'right' : 'left'); });
   for (var button of handOptions) {
     bindTouchButton(button,function () { setHand(this.dataset.playerHand); });
+  }
+  for (var button of gripOptions) {
+    bindTouchButton(button,function () { selectGrip(this.dataset.gripStyle); });
   }
   $('b_calib').onclick = function () { pipe.recalibrate(); toast('站姿标定', '站直并保持自然准备姿势'); };
   $('b_forefit').onclick = function () { capture('forehand'); };

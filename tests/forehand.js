@@ -1,7 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { strokeKinematics } = require('../render/scene3d.js');
+const { strokeKinematics, gripKinematics } = require('../render/scene3d.js');
 
 const sample = (phase, side, facing, kind = 'loop', wing = 'forehand') =>
   strokeKinematics({phase, kind, side: wing}, side, facing);
@@ -25,3 +25,23 @@ for (const facing of [-1, 1]) {
   }
 }
 console.log('正手动作测试通过（双侧球场 × 左右手）');
+
+for (const penhold of [true,false]) {
+  for (const facing of [-1,1]) {
+    for (const hand of [-1,1]) {
+      const mirror=-facing*hand;
+      const grip = (phase,side) =>
+        gripKinematics({phase,kind:'topspin',side},hand,facing,penhold);
+      const forehand=grip(.56,'forehand');
+      const backhand=grip(.56,'backhand');
+      assert(grip(.27,'forehand').roll*mirror>.70,'正手引拍时拍头朝持拍侧展开');
+      assert(forehand.roll*mirror>.25,'正手触球时仍能看出向外拿拍');
+      assert.equal(forehand.turnover,0,'正手使用正面胶皮');
+      assert(Math.abs(backhand.turnover-Math.PI*mirror)<1e-7,'反手触球时应换到反面胶皮');
+      assert(backhand.roll*mirror<0,'反手拍头转向身体中线');
+      assert.equal(grip(0,'backhand').turnover,0,'反手从准备动作平滑开始');
+      assert.equal(grip(1,'backhand').turnover,0,'完成动作后回到准备拍面');
+    }
+  }
+}
+console.log('两种持拍和左右手的正反手拍面测试通过');
