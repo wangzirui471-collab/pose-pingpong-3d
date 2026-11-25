@@ -289,6 +289,9 @@
     var phase = stroke ? clamp(stroke.phase, 0, 1) : 0;
     var kind = stroke?.kind;
     var backhand = stroke?.side === 'backhand';
+    var backhandWeight = backhand
+      ? Math.min(clamp(phase/.42,0,1),clamp((1-phase)/.23,0,1)) : 0;
+    backhandWeight = backhandWeight*backhandWeight*(3-2*backhandWeight);
     var strength = kind === 'block' ? .27 : kind === 'push' || kind === 'cut' ? .43
       : kind === 'smash' ? 1 : .78;
     var coil = Math.sin(Math.PI * clamp(phase / .50, 0, 1));
@@ -301,20 +304,21 @@
     if (phase === 1) faceForward = 0;
     return {
       coil:coil, follow:follow, strength:strength, faceForward:faceForward,
-      turn:backhand ? -turn*.36 : turn, shift:backhand ? -shift*.31 : shift,
-      pole:backhand ? [side*.15,-.93,-facing*.10]
-        : [side*(.66+.39*coil+.20*follow),-.68+.16*coil,-facing*(.13+.23*coil)]
+      turn:lerp(turn,-turn*.36,backhandWeight), shift:lerp(shift,-shift*.31,backhandWeight),
+      backhandWeight:backhandWeight,
+      pole:[
+        side*lerp(.66+.39*coil+.20*follow,.15,backhandWeight),
+        lerp(-.68+.16*coil,-.93,backhandWeight),
+        -facing*lerp(.13+.23*coil,.10,backhandWeight)
+      ]
     };
   }
 
   function gripKinematics(stroke,side,facing,penhold,motion,style) {
     motion = motion || strokeKinematics(stroke,side,facing);
     var mirror = -facing*side;
-    var phase = stroke ? clamp(stroke.phase,0,1) : 0;
-    // 反手在引拍时翻向另一面胶皮，随挥结束后转回正手准备位。
-    var turn = stroke?.side === 'backhand'
-      ? Math.min(clamp(phase/.42,0,1),clamp((1-phase)/.23,0,1)) : 0;
-    turn = turn*turn*(3-2*turn);
+    // 与肘和肩共用切换进度，让反手换面由前臂带动。
+    var turn = motion.backhandWeight;
     var outward = (penhold ? .66 : .53)+.34*motion.coil-.23*motion.follow+(style?.fore || 0);
     var inward = -(penhold ? .34 : .23)-.11*motion.coil+.13*motion.follow+(style?.back || 0);
     return {
@@ -339,8 +343,76 @@
     racket.rotateZ(pose.roll);
     racket.rotateY(pose.turnover);
     grip.scale.x = pose.mirror;
-    var wrist = penhold ? [-.081*pose.mirror,-.118,-.028] : [-.069*pose.mirror,-.145,-.012];
-    return arr(V3(wrist).applyQuaternion(racket.quaternion).add(racket.position));
+    return arr(gripAnchor(grip,penhold).applyQuaternion(racket.quaternion).add(racket.position));
+  }
+
+  function gripAnchor(grip,penhold) {
+    var mirror = grip.scale.x;
+    return new T.Vector3(
+      (penhold ? -.081 : -.069)*mirror,
+      penhold ? -.118 : -.145, penhold ? -.028 : -.012
+    );
+  }
+
+  function gripPalmAxis(grip,anchor) {
+    var palm = grip.getObjectByName('palm').position.clone();
+    palm.x *= grip.scale.x;
+    return palm.sub(anchor).normalize();
+  }
+
+  function solveGripArm(shoulder,racket,grip,penhold,upperLength,foreLength,pole,adjustReach,stroke,dt) {
+    var anchor = gripAnchor(grip,penhold);
+    var palmAxis = gripPalmAxis(grip,anchor);
+    var seed = racket.quaternion.clone();
+    var seedPalm = palmAxis.clone().applyQuaternion(seed);
+    var targetNormal = new T.Vector3(0,0,1).applyQuaternion(seed);
+    var cut = new T.Vector3(), across = new T.Vector3(), desired = new T.Vector3();
+    var twist = new T.Quaternion();
+    var targetQ = new T.Quaternion();
+    var wrist, ik, armDirection, needed;
+    var maxReach = upperLength+foreLength-.012;
+    // 保持拍心位置，反复用前臂方向校正掌根，避免只对上腕点却把手折过去。
+    for (var step=0;step<=6;step++) {
+      wrist = arr(anchor.clone().applyQuaternion(racket.quaternion).add(racket.position));
+      needed = sub3(wrist,shoulder);
+      var distance = len3(needed);
+      var joint = adjustReach && distance>maxReach
+        ? add3(shoulder,mul3(needed,(distance-maxReach)/distance)) : shoulder;
+      ik = solveIK(joint,wrist,upperLength,foreLength,pole);
+      if (step===6) break;
+      armDirection = V3(sub3(ik.wrist,ik.elbow)).normalize();
+      targetQ.setFromUnitVectors(seedPalm,armDirection).multiply(seed);
+      cut.set(0,0,1).applyQuaternion(targetQ);
+      cut.addScaledVector(armDirection,-cut.dot(armDirection)).normalize();
+      desired.copy(targetNormal).addScaledVector(armDirection,-targetNormal.dot(armDirection));
+      // 只补偿少量滚转。拍面接近前臂轴线时自然收掉补偿，避免一帧翻面。
+      var roll = .92*across.crossVectors(cut,desired).dot(armDirection);
+      targetQ.premultiply(twist.setFromAxisAngle(armDirection,roll));
+      racket.quaternion.slerp(targetQ,.76);
+    }
+    armDirection = V3(sub3(ik.wrist,ik.elbow)).normalize();
+    var renderedPalm = palmAxis.clone().applyQuaternion(racket.quaternion);
+    var bend = renderedPalm.angleTo(armDirection);
+    var relaxedLimit = .61;
+    if (bend>relaxedLimit) {
+      // 伸手到极限时以手腕为转轴收掉多余折角，拍柄仍留在手中。
+      targetQ.setFromUnitVectors(renderedPalm,armDirection);
+      racket.quaternion.premultiply(new T.Quaternion().slerp(targetQ,1-relaxedLimit/bend));
+    }
+    renderedPalm.copy(palmAxis).applyQuaternion(racket.quaternion);
+    var last = grip.userData.strokePose;
+    if (stroke && last && last.mirror===grip.scale.x && last.kind===stroke.kind && last.side===stroke.side &&
+        stroke.phase>=last.phase && stroke.phase-last.phase<.20) {
+      // 延续上一帧沿前臂的握拍角度，限制换面速度，消除过渡中的突然翻拍。
+      targetQ.setFromUnitVectors(last.palm,renderedPalm).multiply(last.rotation);
+      var turn = targetQ.angleTo(racket.quaternion);
+      if (turn>dt*36) racket.quaternion.copy(targetQ.slerp(racket.quaternion,dt*36/turn));
+    }
+    grip.userData.strokePose = stroke ? {kind:stroke.kind,side:stroke.side,phase:stroke.phase,
+      mirror:grip.scale.x,palm:renderedPalm,rotation:racket.quaternion.clone()} : null;
+    racket.position.copy(V3(ik.wrist).sub(anchor.applyQuaternion(racket.quaternion)));
+    ik.palm = renderedPalm;
+    return ik;
   }
 
   /* ---------------------------- 3D 人形 ---------------------------- */
@@ -580,8 +652,9 @@
     for (var i = 0; i < 2; i++) {
       var arm = i === 0 ? 'R' : 'L';
       var pole = i === 0 ? motion.pole : [-side*.19,-.94,-dir*.20];
-      var ik = solveIK(shoulders[i], i === 0 ? hand : balance, h.L1, h.L2, pole);
-      if (i === 0 && !ik.reachable) h.racket.position.add(V3(sub3(ik.wrist,hand)));
+      var ik = i === 0
+        ? solveGripArm(shoulders[0],h.racket,h.grip,!!h.penhold,h.L1,h.L2,pole,false,stroke,dt)
+        : solveIK(shoulders[1],balance,h.L1,h.L2,pole);
       setLimb(h['upper'+arm], shoulders[i], ik.elbow);
       setLimb(h['fore'+arm], ik.elbow, ik.wrist);
       put(h['elbow'+arm], ik.elbow);
@@ -590,7 +663,7 @@
       put(wristJoint,add3(ik.wrist,mul3(norm3(sub3(ik.elbow,ik.wrist)),.009)));
       wristJoint.scale.setScalar(h.armLength);
       var orientation = i === 0
-        ? new T.Vector3(-dir*side*.55,.78,-.17).applyQuaternion(h.racket.quaternion)
+        ? ik.palm
         : V3(sub3(ik.wrist,ik.elbow)).normalize();
       var goal = add3(ik.wrist,[orientation.x*.065,orientation.y*.065,orientation.z*.065]);
       h.rig.arm(i===0 ? side : -side,shoulders[i],ik.elbow,ik.wrist,goal);
@@ -1116,11 +1189,8 @@
       1.335*h.stature+.028*motion.coil-.020*motion.follow,
       stance.z+.042+.084*motion.coil-.105*motion.follow];
     put(arm.racket,snap.paddle.p);
-    var wrist = placeGrip(arm.racket,snap.paddle.n,side,-1,stroke,arm.hand,arm.penhold,motion);
-    var stretch = sub3(wrist,shoulder), distance = len3(stretch);
-    var armReach = h.L1 + h.L2 - .013;
-    if (distance > armReach) shoulder = add3(shoulder,mul3(stretch,(distance-armReach)/distance));
-    var ik = solveIK(shoulder,wrist,h.L1,h.L2,motion.pole);
+    placeGrip(arm.racket,snap.paddle.n,side,-1,stroke,arm.hand,arm.penhold,motion);
+    var ik = solveGripArm(shoulder,arm.racket,arm.hand,arm.penhold,h.L1,h.L2,motion.pole,true,stroke,dt);
     // 袖口从持拍侧画面下缘入镜，固定深度避免肩肘外推时横穿球场。
     var sleeveDepth = .34;
     var halfHeight = sleeveDepth * Math.tan(this.camera.fov*Math.PI/360);

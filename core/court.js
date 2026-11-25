@@ -172,11 +172,12 @@
     return keys.has('KeyF') ? (spin ? spin + '-fast' : 'fast') : spin || 'plain';
   }
 
-  function returnVariant(keys) {
+  function returnVariant(keys, hand) {
     var up = keys.has('KeyW'), down = keys.has('KeyS');
     var left = keys.has('KeyA'), right = keys.has('KeyD');
     var kind = keys.has('KeyF') ? 'smash' : up === down ? 'block' : up ? 'topspin' : 'cut';
-    return { kind:kind, side:left === right ? null : left ? 'backhand' : 'forehand' };
+    var wing = left === right ? null : (left === (hand === 'left') ? 'forehand' : 'backhand');
+    return { kind:kind, side:wing };
   }
 
   function serveFrom(from, aim, variant) {
@@ -209,14 +210,12 @@
     return null;
   }
 
-  var CHEST_OVERLAP = .135;
+  var CHEST_OVERLAP = .035;
 
-  function returnWing(feet, p, hand) {
+  function returnWing(feet, p, hand, by) {
     var lateral = (p[0] - feet.x) * (hand === 'left' ? -1 : 1);
-    var preferred = lateral < -.05 ? 'backhand' : 'forehand';
-    var other = preferred === 'backhand' ? 'forehand' : 'backhand';
-    return Math.abs(lateral) <= CHEST_OVERLAP && !returnReach(feet, p, preferred, hand) &&
-      returnReach(feet, p, other, hand) ? other : preferred;
+    if (by === 'ai') lateral = -lateral;
+    return lateral < 0 ? 'backhand' : 'forehand';
   }
 
   function returnReach(feet, p, side, hand) {
@@ -224,7 +223,7 @@
     var lateral = (p[0] - feet.x) * (hand === 'left' ? -1 : 1);
     var forward = feet.z - p[2];
     var backhand = side === 'backhand';
-    // 胸前允许两种动作接球，超过交叠区后按持拍侧限制。
+    // 只在身体中线附近允许两种动作，避免勉强用错侧接球。
     if (backhand ? lateral > CHEST_OVERLAP : lateral < -CHEST_OVERLAP) return false;
     if (forward < .055) return false;
     var wing = (lateral - (backhand ? -.23 : .29)) / (backhand ? .455 : .505);

@@ -364,6 +364,20 @@ ok('左手持拍时，正反手方向跟随持拍手镜像',
   court.returnReach(testStance,[-.45,1.02,1.48],'forehand','left') &&
   !court.returnReach(testStance,[-.45,1.02,1.48],'backhand','left') &&
   court.returnReach(testStance,[.42,1.02,1.48],'backhand','left'));
+var offsetStance = {x:.31,z:1.85};
+ok('自动正反手沿身体中线判断，左右手和对手朝向分别镜像',
+  ['player','ai'].every(by => ['right','left'].every(hand => {
+    var side = (by === 'ai' ? -1 : 1) * (hand === 'left' ? -1 : 1);
+    return [.04,.32].every(offset =>
+      court.returnWing(offsetStance,[offsetStance.x+side*offset,1.02,1.48],hand,by) === 'forehand' &&
+      court.returnWing(offsetStance,[offsetStance.x-side*offset,1.02,1.48],hand,by) === 'backhand');
+  })));
+ok('轻微偏离身体中线也不应强行用另一侧接球',
+  ['right','left'].every(hand => {
+    var side = hand === 'left' ? -1 : 1;
+    return !court.returnReach(offsetStance,[offsetStance.x+side*.08,1.02,1.48],'backhand',hand) &&
+      !court.returnReach(offsetStance,[offsetStance.x-side*.08,1.02,1.48],'forehand',hand);
+  }));
 ok('过远、过短、身后及太低的球超出伸拍范围',
   !court.returnReach(testStance,[1.01,1.02,1.48],'forehand','right') &&
   !court.returnReach(testStance,[.3,1.02,.72],'forehand','right') &&
@@ -394,6 +408,8 @@ function synthesizeStroke(start, dx, dy, part, palmBack, flip) {
   }
   pm.setPlayerControl({mode:'pose',hand:part,assist:true,autoServe:true,move:[0,0]});
   pm.setPlayerTarget({assistTechnique:emitted});
+  var handSide = part === 'left' ? -1 : 1;
+  setIncomingBall(pm, .23*handSide*(emitted?.side === 'backhand' ? -1 : 1));
   var hit = playTicks(pm,710).find(e => e.type==='hit' && e.by==='player');
   return { gesture:emitted, hit:hit };
 }
@@ -430,10 +446,15 @@ for (var [keys, kind, wing] of returnChords) {
   var choice = court.returnVariant(modifiers(keys));
   ok('回球组合 ' + (keys || '空格') + ' 对应指定动作', choice.kind === kind && choice.side === wing);
 }
+ok('左手回球时 A 选左侧正手，D 选右侧反手',
+  court.returnVariant(modifiers('WA'),'left').side === 'forehand' &&
+  court.returnVariant(modifiers('DF'),'left').side === 'backhand' &&
+  court.returnVariant(modifiers('WAD'),'left').side === null);
 
 var returnMatch = new PP.match.Match({difficulty:'novice',firstServer:'ai',rng:()=>.5});
 returnMatch.setPlayerControl({mode:'pose',hand:'right',assist:true,move:[0,0]});
-returnMatch.setPlayerTarget({assistTechnique:{kind:'block',side:'forehand'}});
+returnMatch.setPlayerTarget({assistTechnique:{kind:'block',side:'backhand'}});
+setIncomingBall(returnMatch, -.19);
 for (var tick=0; tick<300 && !returnMatch.stroke?.fallback; tick++) returnMatch.step(1/120);
 ok('已安排自动接球时仍可选动作', !!returnMatch.stroke?.fallback &&
   returnMatch.queueReturn(court.returnVariant(modifiers('WFA'))));
@@ -442,6 +463,7 @@ ok('键盘动作覆盖这一拍的姿势并真实出球',
   keyedEvents[0]?.kind === 'smash' && keyedEvents[0]?.side === 'backhand' && keyedEvents[0]?.assisted &&
   keyedEvents[0]?.spin[0] <= -court.PROFILES.smash.spin);
 setIncomingBall(returnMatch, .06);
+returnMatch.setPlayerTarget({assistTechnique:{kind:'block',side:'forehand'}});
 var nextHit = firstReturn(returnMatch).hit;
 ok('一次组合仅影响一拍，后续恢复体感动作', nextHit?.kind === 'block' &&
   nextHit?.side === 'forehand' && !returnMatch.returnChoice);
@@ -507,7 +529,7 @@ moved.playerStance.x = -1.2;
 miss = firstReturn(moved);
 ok('安排挥拍后离开可接球位置，也会放过来球', !miss.hit && miss.loss);
 var leftHanded = incomingBall(-.45,{hand:'left'});
-leftHanded.queueReturn(court.returnVariant(modifiers('D')));
+leftHanded.queueReturn(court.returnVariant(modifiers('A'),'left'));
 ok('左手持拍可在场地左侧用正手', firstReturn(leftHanded).hit?.side==='forehand');
 
 section('16. 正式发球、擦网和边缘碰撞');

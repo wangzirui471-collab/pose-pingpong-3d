@@ -213,7 +213,7 @@
         this.plan = C.sampleContact(ball, rules, 'ai', .84, function (probe, eta) {
           if (probe.p[1] < .62 || probe.p[1] > 1.68) return null;
           var p = V.copy3(probe.p);
-          var side = (p[0] - feet.x) * palm > .085 ? 'forehand' : 'backhand';
+          var side = C.returnWing(feet, p, ai.hand, 'ai');
           var x = V.clamp(p[0] + (side === 'forehand' ? -.21 : .20) * palm, -1.45, 1.45);
           var z = V.clamp(p[2] - .31, -2.73, Math.abs(x) < .96 ? -1.68 : -1.18);
           var destination = { x: x, z: z };

@@ -216,7 +216,7 @@
   }
 
   function confirmReturn(keys) {
-    submitReturn(PP.court.returnVariant(keys));
+    submitReturn(PP.court.returnVariant(keys,input.hand));
   }
 
   function submitReturn(choice) {
@@ -588,13 +588,14 @@
     if (poseWaiting(out)) status = '等待体感标定';
     setText('s_state', status);
     $('s_tech').classList.toggle('outside', input.assist && snapshot.assistGuide && !snapshot.assistGuide.inRange);
-    var returnChoice = chord?.action === 'return' ? PP.court.returnVariant(chord.keys) : snapshot.returnChoice;
+    var returnChoice = chord?.action === 'return' ? PP.court.returnVariant(chord.keys,input.hand) : snapshot.returnChoice;
     var returnStatus = returnChoice ? '下一拍 · ' + label(returnChoice) : '';
     var touchGuide = snapshot.assistGuide;
     setText('touch-return-status', touchGuide && !touchGuide.inRange
       ? positionHint(touchGuide,snapshot.playerStance)
       : returnStatus || (input.assist ? '到位自动回球' : '点按挥拍'));
-    var keyHint = '回球：空格挡球 · W 拉 / S 切 / F 扣 · A 反手 / D 正手';
+    var wingKeys = input.hand === 'left' ? 'A 正手 / D 反手' : 'A 反手 / D 正手';
+    var keyHint = '回球：空格挡球 · W 拉 / S 切 / F 扣 · '+wingKeys;
     if (input.assist) {
       var guide = snapshot.assistGuide;
       var guidance = guide ? (guide.inRange ? '已进入接球范围' : positionHint(guide, snapshot.playerStance)) : '';
