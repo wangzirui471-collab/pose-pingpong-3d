@@ -74,6 +74,22 @@
     input.servePicking = serveOptionsOpen;
   }
 
+  function addChordKey(selection, code) {
+    if (selection.action === 'return') {
+      // 回球只能选择来球的一侧，后按的方向覆盖前一个。
+      if (code === 'KeyA') selection.keys.delete('KeyD');
+      if (code === 'KeyD') selection.keys.delete('KeyA');
+    }
+    selection.keys.add(code);
+  }
+
+  function startChord(action) {
+    clearChord();
+    chord = {action:action, keys:new Set(), submitted:false};
+    for (var key of pressed) if (chordKeys.has(key)) addChordKey(chord,key);
+    if (action === 'serve') input.servePicking = true;
+  }
+
   function clearKeys() {
     pressed.clear();
     resetStick();
@@ -216,18 +232,28 @@
   }
 
   function confirmReturn(keys) {
-    submitReturn(PP.court.returnVariant(keys,input.hand));
+    return submitReturn(PP.court.returnVariant(keys,input.hand),true);
   }
 
-  function submitReturn(choice) {
-    if (!canReturn()) return;
+  function submitReturnChord(selection) {
+    clearTimeout(chordTimer);
     if (input.assist) {
-      match.queueReturn(choice);
+      selection.submitted = confirmReturn(selection.keys);
     } else {
-      var ball = match.ball;
-      var side = choice.side || (ball && PP.court.chooseAssistedStroke(ball, match.playerStance, input.hand).side);
-      match.requestStroke(side, choice.kind, aim);
+      // 给叠加 W、S 或 F 留一小段时间，仍可在按住空格时出拍。
+      selection.submitted = false;
+      chordTimer = setTimeout(function () {
+        selection.submitted = confirmReturn(selection.keys);
+      },35);
     }
+  }
+
+  function submitReturn(choice, fromChord) {
+    if (!canReturn()) return false;
+    if (input.assist) return match.queueReturn(choice);
+    var ball = match.ball;
+    var side = choice.side || (ball && PP.court.chooseAssistedStroke(ball, match.playerStance, input.hand).side);
+    return match.requestStroke(side, choice.kind, aim, fromChord);
   }
 
   function serve(kind) {
@@ -494,11 +520,12 @@
     if (code === 'Space') spaceHeld = true;
     if (chordKeys.has(code)) {
       pressed.add(code);
-      if (chord) {
+      if (spaceHeld && !chord && !event.repeat && canReturn()) startChord('return');
+      if (spaceHeld || chord) {
         event.preventDefault();
-        if (!event.repeat) {
-          chord.keys.add(code);
-          if (chord.action === 'return' && input.assist) confirmReturn(chord.keys);
+        if (chord && !event.repeat) {
+          addChordKey(chord,code);
+          if (chord.action === 'return') submitReturnChord(chord);
         }
         return;
       }
@@ -512,12 +539,8 @@
     if (event.repeat) return;
     if (code === 'Space' && (canServe() || canReturn())) {
       event.preventDefault();
-      clearChord();
-      var serving = canServe();
-      chord = { action:serving ? 'serve' : 'return',
-        keys:new Set(Array.from(pressed).filter(function (key) { return chordKeys.has(key); })) };
-      if (serving) input.servePicking = true;
-      else if (input.assist) confirmReturn(chord.keys);
+      startChord(canServe() ? 'serve' : 'return');
+      if (chord.action === 'return' && chord.keys.size) submitReturnChord(chord);
     }
     else if (code === 'KeyJ') stroke('forehand');
     else if (code === 'KeyK') stroke('backhand');
@@ -532,11 +555,15 @@
     spaceHeld = false;
     if (!chord) return;
     var selection = chord;
+    if (selection.action === 'return') {
+      clearChord();
+      if (!selection.submitted) confirmReturn(selection.keys);
+      return;
+    }
     clearTimeout(chordTimer);
     chordTimer = setTimeout(function () {
       clearChord();
-      if (selection.action === 'serve') serve(PP.court.serveVariant(selection.keys));
-      else confirmReturn(selection.keys);
+      serve(PP.court.serveVariant(selection.keys));
     }, selection.keys.size ? 35 : 115);
   });
 

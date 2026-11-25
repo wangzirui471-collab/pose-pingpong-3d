@@ -33,17 +33,78 @@ const sizes = [
       await page.locator('#b_start').click();
       await page.evaluate(()=>{__PP3D.match.playerServeDelay=100;});
       if (width===1280) {
-        await page.evaluate(()=>{
+        const opponentReady = () => page.evaluate(()=>{
           __PP3D.match.reset('ai');
           __PP3D.match.autoServeDelay=100;
         });
+        await opponentReady();
         await page.waitForFunction(()=>document.getElementById('hint').textContent.includes('A 反手 / D 正手'));
         await page.locator('#b_hand').click();
         await page.waitForFunction(()=>document.getElementById('hint').textContent.includes('A 正手 / D 反手'));
+        const incoming = async x => page.evaluate(x => {
+          const {match}=__PP3D;
+          match.reset('ai');
+          match.rules.aiServe();
+          match.rules.onEvent({type:'bounce',side:'ai'});
+          match.rules.onEvent({type:'bounce',side:'player'});
+          match.ball=PP.physics.makeBall([x,1.02,1.22],[0,.65,3.5],[0,0,0],{lastTouch:'ai'});
+        },x);
+        await page.evaluate(()=>{
+          const {match}=__PP3D;
+          const step=match.step.bind(match);
+          window.returnHits=[];
+          match.step=(...args)=>{
+            const events=step(...args);
+            window.returnHits.push(...events.filter(e=>e.type==='hit'&&e.by==='player'));
+            return events;
+          };
+        });
         await page.keyboard.down('Space');
         await page.keyboard.press('a');
-        await page.keyboard.up('Space');
         await page.waitForFunction(()=>__PP3D.match.returnChoice?.side==='forehand');
+        await page.keyboard.press('d');
+        assert.equal(await page.evaluate(()=>__PP3D.match.returnChoice?.side),'backhand','后按的 D 应切换到右侧反手');
+        await incoming(.35);
+        await page.keyboard.press('d');
+        await page.waitForFunction(()=>window.returnHits[0]?.side==='backhand'&&window.returnHits[0]?.kind==='block');
+        await incoming(-.35);
+        await page.keyboard.press('a');
+        await page.waitForFunction(()=>window.returnHits[1]?.side==='forehand'&&window.returnHits[1]?.kind==='block');
+        await page.keyboard.up('Space');
+        assert.equal(await page.evaluate(()=>__PP3D.match.returnChoice),null,'已经击球的组合不能在松开时提交第二次');
+
+        await opponentReady();
+        await page.locator('#b_hand').click();
+        await page.waitForFunction(()=>document.getElementById('hint').textContent.includes('A 反手 / D 正手'));
+        await page.keyboard.down('Space');
+        await incoming(-.35);
+        await page.keyboard.press('a');
+        await page.waitForFunction(()=>returnHits[2]?.side==='backhand'&&returnHits[2]?.kind==='block');
+        await incoming(.35);
+        await page.keyboard.press('d');
+        await page.waitForFunction(()=>returnHits[3]?.side==='forehand'&&returnHits[3]?.kind==='block');
+        await page.keyboard.up('Space');
+
+        await page.locator('#settings summary').first().click();
+        await page.locator('#b_assist').click();
+        await page.locator('#settings summary').first().click();
+        await opponentReady();
+        await page.keyboard.down('Space');
+        await incoming(.35);
+        await page.keyboard.press('a');
+        await page.waitForFunction(()=>__PP3D.match.strokeRequest?.side==='backhand');
+        await page.keyboard.press('d');
+        await page.waitForFunction(()=>returnHits[4]?.side==='forehand'&&returnHits[4]?.kind==='block'&&!returnHits[4].assisted);
+        await page.keyboard.up('Space');
+
+        for (const [key,kind] of [['a','leftspin'],['d','rightspin']]) {
+          await page.evaluate(()=>__PP3D.match.reset('player'));
+          await page.keyboard.down('Space');
+          await page.keyboard.press(key);
+          await page.keyboard.up('Space');
+          await page.waitForFunction(kind=>__PP3D.match.autoServe?.kind===kind,kind);
+        }
+        console.log('左右手正反手、连续按住空格、关闭辅助和左右侧旋发球通过浏览器按键实测');
       }
       cases.push(...await page.evaluate(() => {
         const {scene,match} = __PP3D;

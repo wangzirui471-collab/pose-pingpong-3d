@@ -506,6 +506,13 @@ var goodForehand = incomingBall(.45, {});
 ok('站位合适时，自动正手仍能正常接球', firstReturn(goodForehand).hit?.side==='forehand');
 var goodBackhand = incomingBall(-.42, {});
 ok('站位合适时，自动反手仍能正常接球', firstReturn(goodBackhand).hit?.side==='backhand');
+var manualCorrected = incomingBall(.35, {});
+manualCorrected.setPlayerControl({mode:'keyboard',hand:'right',assist:false,move:[0,0]});
+manualCorrected.requestStroke('backhand','block',null,true);
+playTicks(manualCorrected,4);
+ok('关闭辅助时，空格组合可在触球前纠正排队的挥拍方向',
+  manualCorrected.requestStroke('forehand','block',null,true) &&
+  firstReturn(manualCorrected).hit?.side==='forehand');
 var missedForehand = incomingBall(.45, {});
 missedForehand.queueReturn(court.returnVariant(modifiers('WA')));
 var miss = firstReturn(missedForehand);

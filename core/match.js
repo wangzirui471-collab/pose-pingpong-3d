@@ -97,13 +97,15 @@
     return true;
   };
 
-  Match.prototype.requestStroke = function (side, kind, aim) {
-    if (!this.control || this.control.mode !== 'keyboard' || this.stroke || this.strokeRequest ||
+  Match.prototype.requestStroke = function (side, kind, aim, fromChord) {
+    var canReplace = fromChord && (this.strokeRequest?.fromChord || (this.stroke?.fromChord && !this.stroke.checked));
+    if (!this.control || this.control.mode !== 'keyboard' || ((this.stroke || this.strokeRequest) && !canReplace) ||
         (this.rules.state !== 'toss' && this.rules.state !== 'rally') || (this.rules.state === 'toss' && this.rules.server !== 'player')) return false;
+    this.stroke = null;
     this.strokeRequest = {
       side: side === 'backhand' ? 'backhand' : 'forehand',
       kind: C.PROFILES[kind] ? kind : 'drive', aim: V.copy3(aim || [0, K.TABLE.HEIGHT, -0.91]),
-      expires: this.time + 0.43, scanAt: this.time
+      expires: this.time + 0.43, scanAt: this.time, fromChord:!!fromChord
     };
     return true;
   };
@@ -348,7 +350,7 @@
           kind: kind, side: request.side, aim: request.aim, p: contact.p,
           start: now + Math.max(0, contact.eta - prep), at: now + contact.eta,
           duration: Math.min(prep, contact.eta) + C.PROFILES[kind].duration * .55,
-          checked: false
+          checked: false, fromChord:request.fromChord
         };
         this.strokeRequest = null;
       } else if (now >= request.expires || (rules.state !== 'toss' && rules.state !== 'rally')) {
