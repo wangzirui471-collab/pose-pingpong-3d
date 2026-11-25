@@ -203,10 +203,9 @@
     g.lookAt(wp.x + n[0], wp.y + n[1], wp.z + n[2]);
   }
 
-  function buildGrip(skin,penhold,relaxed,style) {
+  function buildBalanceHand(skin) {
     var grip = new T.Group();
-    grip.name = relaxed ? 'balance-hand' : penhold ? 'penhold-grip' : 'shakehand-grip';
-    grip.userData.style = style;
+    grip.name = 'balance-hand';
     function cushion(name,p,r,angle) {
       var mesh = new T.Mesh(new T.SphereGeometry(1,20,14),skin);
       mesh.name = name;
@@ -216,10 +215,7 @@
       grip.add(mesh);
     }
     function finger(name,joints,radius) {
-      var lift = style?.[name] || 0;
-      var curve = new T.CatmullRomCurve3(joints.map(function (p,i) {
-        return new T.Vector3(p[0],p[1]+lift*(i/(joints.length-1))**2,p[2]);
-      }));
+      var curve = new T.CatmullRomCurve3(joints.map(V3));
       var segments = 16, sides = 10, positions = [], triangles = [];
       var axes = curve.computeFrenetFrames(segments,false);
       for (var i=0;i<=segments;i++) {
@@ -246,41 +242,19 @@
       var tip=arr(curve.getPoint(1));
       cushion(name+'-tip',tip,[radius*.42,radius*.40,radius*.41]);
     }
-    if (relaxed) {
-      cushion('wrist-pad',[0,.004,0],[.023,.019,.017]);
-      cushion('palm',[0,.038,0],[.035,.044,.017]);
-      finger('thumb',[[.024,.023,-.002],[.039,.038,.009],[.036,.056,.022],[.021,.066,.025]],.011);
-      var fingers = [
-        ['index',.023,.112,.010],
-        ['middle',.007,.121,.010],
-        ['ring',-.010,.117,.009],
-        ['little',-.024,.102,.008]
-      ];
-      for (var digit of fingers) {
-        var x = digit[1], end = digit[2];
-        finger(digit[0],[[x,.063,0],[x,end-.025,.005],
-          [x*.94,end-.009,.016],[x*.81,end-.008,.031]],digit[3]);
-      }
-    } else if (penhold) {
-      cushion('wrist-pad',[-.066,-.116,-.025],[.024,.018,.019],-.21);
-      cushion('palm',[-.050,-.108,-.025],[.023,.028,.017],-.26);
-      cushion('thumb-pad',[-.044,-.094,-.001],[.014,.018,.015],-.32);
-      // 直板像拿笔，拇指和食指从拍肩两侧轻扣，后三指自然搭在拍背。
-      finger('thumb',[[-.057,-.098,-.014],[-.046,-.086,.005],[-.032,-.071,.018],[-.018,-.066,.017],[-.010,-.071,.016]],.0092);
-      finger('index',[[-.046,-.099,.002],[-.029,-.095,.021],[-.005,-.091,.023],[.019,-.096,.019],[.022,-.110,.012]],.0081);
-      finger('middle',[[-.041,-.104,-.027],[-.027,-.083,-.025],[-.015,-.064,-.021],[-.005,-.048,-.016],[.004,-.043,-.014]],.0080);
-      finger('ring',[[-.039,-.115,-.032],[-.023,-.099,-.029],[-.006,-.082,-.023],[.013,-.073,-.017],[.025,-.069,-.015]],.0075);
-      finger('little',[[-.043,-.126,-.031],[-.030,-.115,-.031],[-.018,-.102,-.028],[-.004,-.093,-.024],[.010,-.089,-.018]],.0066);
-    } else {
-      cushion('wrist-pad',[-.057,-.145,-.012],[.023,.019,.020],-.12);
-      cushion('palm',[-.036,-.130,-.010],[.019,.032,.022],-.12);
-      cushion('thumb-pad',[-.032,-.112,.009],[.012,.019,.012],-.30);
-      // 横板食指沿背面，其他三指分开绕过拍柄。
-      finger('thumb',[[-.042,-.121,.012],[-.027,-.103,.019],[-.016,-.086,.017],[-.008,-.070,.014]],.0085);
-      finger('index',[[-.038,-.115,-.025],[-.018,-.092,-.022],[.009,-.076,-.019],[.035,-.058,-.011]],.0078);
-      finger('middle',[[-.029,-.115,.019],[-.009,-.116,.022],[.019,-.119,.020],[.025,-.120,.004],[.022,-.122,-.014]],.0084);
-      finger('ring',[[-.032,-.131,.017],[-.010,-.133,.023],[.018,-.135,.020],[.025,-.137,.006],[.022,-.139,-.012]],.0078);
-      finger('little',[[-.032,-.145,.014],[-.010,-.151,.022],[.017,-.153,.018],[.024,-.154,.005],[.023,-.156,-.014]],.0070);
+    cushion('wrist-pad',[0,.004,0],[.023,.019,.017]);
+    cushion('palm',[0,.038,0],[.035,.044,.017]);
+    finger('thumb',[[.024,.023,-.002],[.039,.038,.009],[.036,.056,.022],[.021,.066,.025]],.011);
+    var fingers = [
+      ['index',.023,.112,.010],
+      ['middle',.007,.121,.010],
+      ['ring',-.010,.117,.009],
+      ['little',-.024,.102,.008]
+    ];
+    for (var digit of fingers) {
+      var x = digit[1], end = digit[2];
+      finger(digit[0],[[x,.063,0],[x,end-.025,.005],
+        [x*.94,end-.009,.016],[x*.81,end-.008,.031]],digit[3]);
     }
     return grip;
   }
@@ -343,15 +317,13 @@
     racket.rotateZ(pose.roll);
     racket.rotateY(pose.turnover);
     grip.scale.x = pose.mirror;
-    return arr(gripAnchor(grip,penhold).applyQuaternion(racket.quaternion).add(racket.position));
+    return arr(gripAnchor(grip).applyQuaternion(racket.quaternion).add(racket.position));
   }
 
-  function gripAnchor(grip,penhold) {
-    var mirror = grip.scale.x;
-    return new T.Vector3(
-      (penhold ? -.081 : -.069)*mirror,
-      penhold ? -.118 : -.145, penhold ? -.028 : -.012
-    );
+  function gripAnchor(grip) {
+    var anchor = V3(grip.userData.wrist);
+    anchor.x *= grip.scale.x;
+    return anchor;
   }
 
   function gripPalmAxis(grip,anchor) {
@@ -360,8 +332,8 @@
     return palm.sub(anchor).normalize();
   }
 
-  function solveGripArm(shoulder,racket,grip,penhold,upperLength,foreLength,pole,adjustReach,stroke,dt) {
-    var anchor = gripAnchor(grip,penhold);
+  function solveGripArm(shoulder,racket,grip,upperLength,foreLength,pole,adjustReach,stroke,dt) {
+    var anchor = gripAnchor(grip);
     var palmAxis = gripPalmAxis(grip,anchor);
     var seed = racket.quaternion.clone();
     var seedPalm = palmAxis.clone().applyQuaternion(seed);
@@ -393,7 +365,7 @@
     armDirection = V3(sub3(ik.wrist,ik.elbow)).normalize();
     var renderedPalm = palmAxis.clone().applyQuaternion(racket.quaternion);
     var bend = renderedPalm.angleTo(armDirection);
-    var relaxedLimit = .61;
+    var relaxedLimit = .22;
     if (bend>relaxedLimit) {
       // 伸手到极限时以手腕为转轴收掉多余折角，拍柄仍留在手中。
       targetQ.setFromUnitVectors(renderedPalm,armDirection);
@@ -406,7 +378,8 @@
       // 延续上一帧沿前臂的握拍角度，限制换面速度，消除过渡中的突然翻拍。
       targetQ.setFromUnitVectors(last.palm,renderedPalm).multiply(last.rotation);
       var turn = targetQ.angleTo(racket.quaternion);
-      if (turn>dt*36) racket.quaternion.copy(targetQ.slerp(racket.quaternion,dt*36/turn));
+      var stepLimit = dt*26;
+      if (turn>stepLimit) racket.quaternion.copy(targetQ.slerp(racket.quaternion,stepLimit/turn));
     }
     grip.userData.strokePose = stroke ? {kind:stroke.kind,side:stroke.side,phase:stroke.phase,
       mirror:grip.scale.x,palm:renderedPalm,rotation:racket.quaternion.clone()} : null;
@@ -508,11 +481,11 @@
     ['foreR','foreL','elbowR','elbowL','handR','handL','shoulderR','shoulderL',
      'kneeR','kneeL','shoeR','shoeL'].forEach(function (k) { parts[k].castShadow = false; });
 
-    parts.grip = buildGrip(skin,penhold,false,cfg.gripStyle);
+    parts.grip = NS.handMesh.build(T,skin,penhold,cfg.gripStyle);
     parts.rackets = {[cfg.grip || 'shakehand']:{racket:parts.racket,grip:parts.grip}};
     if (penhold) parts.penhold = parts.grip;
     parts.racket.add(parts.grip);
-    parts.balanceHand = buildGrip(skin,false,true);
+    parts.balanceHand = buildBalanceHand(skin);
     root.add(parts.balanceHand);
     parts.rig = NS.athleteRig.build(T,root,skin,shirt,pants,shoe,facing,cfg);
     parts.torso.visible = parts.pelvis.visible = false;
@@ -653,7 +626,7 @@
       var arm = i === 0 ? 'R' : 'L';
       var pole = i === 0 ? motion.pole : [-side*.19,-.94,-dir*.20];
       var ik = i === 0
-        ? solveGripArm(shoulders[0],h.racket,h.grip,!!h.penhold,h.L1,h.L2,pole,false,stroke,dt)
+        ? solveGripArm(shoulders[0],h.racket,h.grip,h.L1,h.L2,pole,false,stroke,dt)
         : solveIK(shoulders[1],balance,h.L1,h.L2,pole);
       setLimb(h['upper'+arm], shoulders[i], ik.elbow);
       setLimb(h['fore'+arm], ik.elbow, ik.wrist);
@@ -903,12 +876,12 @@
     var sleeve = mat(cfg.shirt,{roughness:.91});
     var skin = mat(cfg.skin,{roughness:.84});
     var penhold = cfg.grip === 'penhold';
-    var section = [[0,-.50],[.029,-.50],[.033,-.37],[.033,-.21],[.030,-.02],
-      [.026,.18],[.023,.34],[.022,.50],[0,.50]];
+    var section = [[0,-.50],[.028,-.50],[.032,-.37],[.032,-.21],[.029,-.02],
+      [.024,.18],[.019,.36],[.017,.50],[.016,.525],[0,.525]];
     var forearm = new T.Mesh(new T.LatheGeometry(section.map(function (row) {
       return new T.Vector2(row[0],row[1]);
     }),26),skin);
-    var racket = buildRacket(penhold), hand = buildGrip(skin,penhold,false,cfg.gripStyle);
+    var racket = buildRacket(penhold), hand = NS.handMesh.build(T,skin,penhold,cfg.gripStyle);
     racket.add(hand);
     var group = new T.Group();
     var upper = limb(.041,sleeve,24);
@@ -1007,7 +980,7 @@
     if (!equipment) {
       var penhold = key === 'penhold';
       var racket = buildRacket(penhold);
-      var grip = buildGrip(skin,penhold,false,style);
+      var grip = NS.handMesh.build(T,skin,penhold,style);
       racket.add(grip);
       equipment = actor.rackets[key] = {racket:racket,grip:grip};
     }
@@ -1187,10 +1160,10 @@
     var motion = strokeKinematics(stroke,side,-1);
     var shoulder = [stance.x+side*h.shoulderWidth+(bb ? bb.leanX*.06 : 0)+motion.shift,
       1.335*h.stature+.028*motion.coil-.020*motion.follow,
-      stance.z+.042+.084*motion.coil-.105*motion.follow];
+      stance.z+.042+.084*motion.coil-.045*motion.follow];
     put(arm.racket,snap.paddle.p);
     placeGrip(arm.racket,snap.paddle.n,side,-1,stroke,arm.hand,arm.penhold,motion);
-    var ik = solveGripArm(shoulder,arm.racket,arm.hand,arm.penhold,h.L1,h.L2,motion.pole,true,stroke,dt);
+    var ik = solveGripArm(shoulder,arm.racket,arm.hand,h.L1,h.L2,motion.pole,true,stroke,dt);
     // 袖口从持拍侧画面下缘入镜，固定深度避免肩肘外推时横穿球场。
     var sleeveDepth = .34;
     var halfHeight = sleeveDepth * Math.tan(this.camera.fov*Math.PI/360);
@@ -1202,6 +1175,13 @@
     setLimb(arm.upperSkin,sleeveHem,ik.elbow);
     put(arm.elbow,ik.elbow);
     setLimb(arm.fore,ik.elbow,ik.wrist);
+    var along = V3(sub3(ik.wrist,ik.elbow)).normalize();
+    var flat = new T.Vector3(0,0,1).applyQuaternion(arm.racket.quaternion);
+    flat.addScaledVector(along,-flat.dot(along)).normalize();
+    // 椭圆腕围随掌面滚动，让前臂轮廓平顺接到掌根。
+    var across = new T.Vector3().crossVectors(along,flat);
+    arm.fore.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(across,along,flat));
+    arm.fore.scale.z = .84;
   };
 
   function playerStroke(snap, input, side) {

@@ -79,6 +79,12 @@ const sizes = [
             scene._updateCamera(snap,null,1/60);
             scene._updateFirstPersonArm(snap,null,1/60);
             const {arm,camera}=scene;
+            const index=arm.hand.getObjectByName('index-tip').position;
+            const thumb=arm.hand.getObjectByName('thumb-tip').position;
+            const middle=arm.hand.getObjectByName('middle-tip').position;
+            const contact=arm.penhold
+              ? thumb.z>0 && index.z>0 && middle.z<0 && Math.abs(thumb.x-index.x)>.026
+              : index.z<0 && index.x>.020 && index.y>-.065 && Math.abs(middle.x)<.015 && middle.z<0;
             const sleeve=arm.upper;
             let occlusion=0, near=Infinity;
             for (const part of [sleeve,arm.upperSkin,arm.elbow].filter(Boolean)) {
@@ -93,9 +99,8 @@ const sizes = [
               }
             }
             const anchor=new T.Vector3(0,-.5,0).applyMatrix4(sleeve.matrixWorld).project(camera);
-            const wrist=new T.Vector3(
-              (arm.penhold?-.081:-.069)*side,arm.penhold?-.118:-.145,arm.penhold?-.028:-.012
-            );
+            const wrist=new T.Vector3(...arm.hand.userData.wrist);
+            wrist.x*=side;
             const localPalm=arm.hand.getObjectByName('palm').position.clone();
             localPalm.x*=side;
             const palmAxis=localPalm.sub(wrist).applyQuaternion(arm.racket.quaternion);
@@ -103,7 +108,7 @@ const sizes = [
             const foreAxis=wrist.clone().sub(arm.elbow.position);
             const bend=palmAxis.angleTo(foreAxis)*180/Math.PI;
             results.push({viewport:[innerWidth,innerHeight],player,gripMode,hand,x,kind,wing,phase,
-              near,occlusion,anchorY:anchor.y,bend,handSide:(wrist.x-x)*side});
+              near,occlusion,anchorY:anchor.y,bend,contact,handSide:(wrist.x-x)*side});
           }
         }
         return results;
@@ -116,7 +121,8 @@ const sizes = [
     console.log(JSON.stringify({samples:cases.length,blocked:blocked.length,first:blocked[0],worstBend}));
     assert.deepEqual(errors,[]);
     assert.equal(blocked.length,0,'袖管在击球中盖住球场或进入相机近裁剪面');
-    assert(worstBend.bend<37,'第一人称手腕折角超出限值');
+    assert(worstBend.bend<15,'第一人称手腕应自然接近伸直');
+    assert(cases.every(row=>row.contact),'直拍捏拍肩与横拍绕拍柄的指位错误');
     assert.equal(crossed.length,0,'正手引拍或触球时手腕没有留在持拍侧');
   } finally {await browser.close();}
 })().catch(error=>{ console.error(error); process.exitCode=1;});
