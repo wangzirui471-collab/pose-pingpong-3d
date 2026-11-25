@@ -13,7 +13,7 @@
 
 球员使用独立制作的游戏材质与手工调整的 3D 网格。马龙、孙颖莎和奥恰洛夫的头部、发型和球衣参照实拍视频中的多角度画面制作。球鞋按可见轮廓和配色重制。公开片段用于人工形态和动作参考，没有进行同步多机位扫描。
 
-王楚钦、张本智和、樊振东的轮廓及服装按比赛视频重新校准，面部保留原有美术材质。六名球员默认使用横板，王楚钦为左手。各球员的指位和腕角按角色制作。直板练习使用拇指、食指扣拍及反面横打。 [WTT 持拍资料](https://wttwebcmsprod.blob.core.windows.net/medianotes/DAY%206%20MEDIA%20NOTES%20Singapore%20Smash%202023.pdf) · [国际乒联直板示范](https://www.youtube.com/watch?v=XyhEtTkG27M)
+六名球员的脸型、鼻梁、眼部、嘴唇和发际线用多角度采访照及比赛近景校准。各角色使用独立的眼球网格和眼睑尺寸，眨眼由眼睑遮挡实现。六名球员默认使用横板，王楚钦为左手。各球员的指位和腕角按角色制作。直板练习使用拇指、食指扣拍及反面横打。 [WTT 持拍资料](https://wttwebcmsprod.blob.core.windows.net/medianotes/DAY%206%20MEDIA%20NOTES%20Singapore%20Smash%202023.pdf) · [国际乒联直板示范](https://www.youtube.com/watch?v=XyhEtTkG27M)
 
 
 ## 训练与比赛视频参考
