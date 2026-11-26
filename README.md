@@ -8,12 +8,12 @@
 - 支持自动接发球和四档难度。可操控樊振东、马龙，挑战王楚钦、张本智和、奥恰洛夫、孙颖莎。使用感知台时可运行本地桥接，键盘和触屏不需要桥接。
 
 - 测试命令为 **node tests/run.js**、**node tests/forehand.js** 和 **node tests/athlete-head.js**。安装 Playwright 后可运行 **node tests/first-person-browser.cjs**，检查四种画面尺寸下的第一人称袖口与球场遮挡。
-- 发布静态页可运行 **python tools/build_single.py --output index.html**。静态页面不依赖 API、登录服务或数据库。
+- 发布静态页可运行 **python tools/build_single.py --output index.html**。同时发布 `assets/heads` 中的 GLB。静态页面不依赖 API、登录服务或数据库。
 - Three.js 和其许可证位于 vendor。人体模型改编自 MakeHuman CC0 基础网格，球体动力学参考 MIT 许可项目，许可见 third_party。
 
 球员使用独立制作的游戏材质与手工调整的 3D 网格。马龙、孙颖莎和奥恰洛夫的头部、发型和球衣参照实拍视频中的多角度画面制作。球鞋按可见轮廓和配色重制。公开片段用于人工形态和动作参考，没有进行同步多机位扫描。
 
-六名球员的脸型、鼻梁、眼部、嘴唇和发际线用多角度采访照及比赛近景校准。各角色使用独立的眼球网格和眼睑尺寸，眨眼由眼睑遮挡实现。六名球员默认使用横板，王楚钦为左手。各球员的指位和腕角按角色制作。直板练习使用拇指、食指扣拍及反面横打。 [WTT 持拍资料](https://wttwebcmsprod.blob.core.windows.net/medianotes/DAY%206%20MEDIA%20NOTES%20Singapore%20Smash%202023.pdf) · [国际乒联直板示范](https://www.youtube.com/watch?v=XyhEtTkG27M)
+六名球员使用独立的 Blender 头模、发型和身体网格。网页版的皮肤、五官和胡茬由程序绘制，按当前选中的球员加载。六名球员默认使用横板，王楚钦为左手。各球员的指位和腕角按角色制作。直板练习使用拇指、食指扣拍及反面横打。 [WTT 持拍资料](https://wttwebcmsprod.blob.core.windows.net/medianotes/DAY%206%20MEDIA%20NOTES%20Singapore%20Smash%202023.pdf) · [国际乒联直板示范](https://www.youtube.com/watch?v=XyhEtTkG27M)
 
 
 ## 训练与比赛视频参考

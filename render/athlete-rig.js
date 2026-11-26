@@ -162,9 +162,10 @@
   }
 
   function build(T,root,skin,jersey,shorts,shoe,facing,style) {
-    var asset = G.PP_ATHLETE_MESH;
+    var asset = G.PP_ATHLETE_BODY_BIND || G.PP_ATHLETE_MESH;
     var meshGeometry = new T.BufferGeometry();
-    var positions = decode(asset.pos,Float32Array);
+    var bodyShape = G.PP_ATHLETE_BODIES?.[style.character] || asset.pos;
+    var positions = decode(bodyShape,Float32Array);
     meshGeometry.setAttribute('position',new T.BufferAttribute(positions,3));
     meshGeometry.setAttribute('skinIndex', new T.BufferAttribute(decode(asset.joints, Uint8Array), 4));
     meshGeometry.setAttribute('skinWeight', new T.BufferAttribute(decode(asset.weights, Uint8Array), 4, true));
@@ -272,6 +273,7 @@
     }
     var mesh = new T.SkinnedMesh(meshGeometry, materials);
     mesh.name = 'anatomical-athlete';
+    mesh.userData.bodyProfile = style.character;
     mesh.customDepthMaterial = new T.MeshDepthMaterial({depthPacking:T.RGBADepthPacking,skinning:true});
     mesh.customDepthMaterial.onBeforeCompile = clipHoldingHand;
     mesh.frustumCulled = false;
