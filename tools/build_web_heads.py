@@ -1,4 +1,4 @@
-"""为公开网页打包球员几何，并用原创程序纹理替换照片烘焙贴图。"""
+"""为公开网页打包球员几何，并把对齐后的原创参考投影成面部贴图。"""
 
 import argparse
 import io
@@ -7,19 +7,19 @@ import struct
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SIZE = 1024
-# 分别标记两眼、唇线和肤色。坐标对应建模检查相机的正面投影。
+# 非正面区域的肤色基准。面部五官由对齐后的参考图投影。
 PLAYERS = {
-    "fan": ("樊振东", (203, 158, 133), (263, 240, 22, 7), (365, 240, 23, 7), (312, 345, 44)),
-    "ma": ("马龙", (199, 151, 128), (265, 240, 23, 7), (364, 240, 23, 6), (314, 344, 45)),
-    "wang": ("王楚钦", (205, 157, 139), (267, 240, 22, 7), (366, 240, 25, 7), (316, 345, 44)),
-    "harimoto": ("张本智和", (205, 158, 132), (267, 239, 22, 7), (368, 240, 22, 7), (315, 342, 43)),
-    "sun": ("孙颖莎", (214, 167, 140), (266, 240, 22, 7), (365, 239, 22, 7), (314, 345, 39)),
-    "ovtcharov": ("奥恰洛夫", (211, 165, 145), (266, 240, 21, 8), (365, 240, 22, 8), (317, 344, 44)),
+    "fan": ("樊振东", (203, 158, 133)),
+    "ma": ("马龙", (199, 151, 128)),
+    "wang": ("王楚钦", (205, 157, 139)),
+    "harimoto": ("张本智和", (205, 158, 132)),
+    "sun": ("孙颖莎", (214, 167, 140)),
+    "ovtcharov": ("奥恰洛夫", (211, 165, 145)),
 }
 
 
@@ -66,8 +66,34 @@ def surface_map(gltf, buffer):
     return surface
 
 
-def paint_surface(key, surface):
-    _, skin, eye_a, eye_b, mouth = PLAYERS[key]
+def project_portrait(color, portrait, px, py, front):
+    # 照片参考已离线对准模型相机。只投影脸部正面，颈部、耳后继续使用程序材质。
+    with Image.open(portrait) as image:
+        if image.size != (630, 630):
+            raise ValueError(f"面部参考须对齐到 630×630：{portrait}")
+        pixels = np.asarray(image.convert("RGB"), dtype=np.float32)
+    low = np.asarray(Image.fromarray(pixels.astype(np.uint8)).filter(
+        ImageFilter.GaussianBlur(26)), dtype=np.float32)
+    u = np.clip(px - .5, 0, 628.999)
+    v = np.clip(py - .5, 0, 628.999)
+    i, j = u.astype(int), v.astype(int)
+    du, dv = (u - i)[:, None], (v - j)[:, None]
+    sampled = (pixels[j, i] * (1 - du) + pixels[j, i + 1] * du) * (1 - dv)
+    sampled += (pixels[j + 1, i] * (1 - du) + pixels[j + 1, i + 1] * du) * dv
+    # 柔化参考图中大面积的亮暗变化，眼睑、眉毛和唇纹的局部细节仍留在贴图中。
+    luma = low[j, i].mean(axis=1)
+    tone = np.clip((151 / np.maximum(55, luma))**.36, .88, 1.13)
+    sampled = np.clip(sampled * tone[:, None], 0, 255)
+    brow_to_chin = smooth(180, 211, py) * (1 - smooth(402, 434, py))
+    cheeks = 1 - smooth(101, 140, np.abs(px - 315))
+    # 额头从发型几何接收轮廓，避免把参考里的旧刘海又画在皮肤上。
+    hair_shadow = (1 - smooth(39, 91, sampled.mean(axis=1))) * (1 - smooth(202, 230, py))
+    weight = front * brow_to_chin * cheeks * (1 - hair_shadow)
+    color += (sampled - color) * weight[:, None]
+
+
+def paint_surface(key, surface, portrait):
+    _, skin = PLAYERS[key]
     valid = np.isfinite(surface[:, :, 0])
     x, y, z = surface[valid].T
     # 与 Blender 中用于检查面部比例的正面相机采用相同投影。
@@ -90,41 +116,7 @@ def paint_surface(key, surface):
         beard = smooth(304, 366, py) * (1 - smooth(418, 450, py)) * front
         paint((103, 83, 72), beard * (.12 + .14 * (noise > 1.35)))
 
-    for eye_x, eye_y, width, height in (eye_a, eye_b):
-        u = (px - eye_x) / width
-        outer = np.sign(eye_x - 315)
-        slope = outer * u * 1.6
-        dy = py - eye_y - slope
-        curve = np.sqrt(np.maximum(0, 1 - u**2)) * np.clip(1 - .18 * np.abs(u), 0, 1)
-        upper = -height * curve
-        lower = height * curve * .70
-        socket = np.exp(-((u / 1.4)**4) - ((dy + 5) / 12)**2)
-        paint((126, 79, 67), front * socket * .16)
-        opening = smooth(-.92, .80, dy - upper) * (1 - smooth(-.65, .85, dy - lower))
-        opening *= 1 - smooth(.85, 1.03, np.abs(u))
-        iris_y = dy + 1.0
-        radius = np.hypot(px - eye_x + .5, iris_y)
-        iris_color = (124, 102, 75) if key == "ovtcharov" else (85, 58, 44)
-        paint((184, 171, 157), opening * front)
-        paint(iris_color, opening * front * (1 - smooth(6.1, 8.0, radius)))
-        paint((37, 29, 27), opening * front * (1 - smooth(3.3, 4.45, radius)))
-        glint = np.hypot(px - eye_x + 2, iris_y + 1.5)
-        paint((231, 222, 211), opening * front * (1 - smooth(.55, 1.5, glint)) * .75)
-        rim = np.exp(-((dy - upper) / 1.2)**2) * (1 - smooth(.87, 1.02, np.abs(u)))
-        paint((104, 68, 59), rim * front * .72)
-        brow_u = (px - eye_x - outer * 2.5) / (width * 1.38)
-        arch = -22 - 4.8 * (1 - brow_u**2) + outer * brow_u * 2
-        brows = np.exp(-((dy - arch) / 3.2)**2) * (1 - smooth(.77, 1.06, np.abs(brow_u)))
-        strands = .82 + .18 * np.sin(px * 2.7 + py * 1.5)
-        paint((85, 64, 51), front * brows * strands * .78)
-
-    mouth_x, mouth_y, width = mouth
-    t = (px - mouth_x) / width
-    center = mouth_y - 2.4 * t**2 + 1.7 * np.cos(t * np.pi * 1.3)
-    lip = np.exp(-((py - center - 1) / 8.5)**2) * (1 - smooth(.68, 1.06, np.abs(t)))
-    paint((177, 103, 99), lip * front * .68)
-    line = np.exp(-((py - center) / 1.55)**2) * (1 - smooth(.74, 1.04, np.abs(t)))
-    paint((92, 48, 48), line * front * .76)
+    project_portrait(color, portrait, px, py, front)
 
     pixels = np.empty((SIZE, SIZE, 3), np.uint8)
     pixels[:] = skin
@@ -134,7 +126,7 @@ def paint_surface(key, surface):
     return output.getvalue()
 
 
-def build_head(key, path):
+def build_head(key, path, portrait):
     data = path.read_bytes()
     assert struct.unpack_from("<4sII", data) == (b"glTF", 2, len(data))
     json_size, json_kind = struct.unpack_from("<I4s", data, 12)
@@ -147,7 +139,7 @@ def build_head(key, path):
     assert len(gltf["buffers"]) == len(gltf["images"]) == 1
     image = gltf["images"][0]
     view_target = image["bufferView"]
-    texture = paint_surface(key, surface_map(gltf, buffer))
+    texture = paint_surface(key, surface_map(gltf, buffer), portrait)
     image.update(mimeType="image/jpeg", name="原创球员肤色纹理")
     packed = bytearray()
     for i, view in enumerate(gltf["bufferViews"]):
@@ -169,11 +161,14 @@ def build_head(key, path):
 def main():
     cli = argparse.ArgumentParser()
     cli.add_argument("model_dir", type=Path)
+    cli.add_argument("--portraits", type=Path, default=ROOT / "assets" / "face-paint",
+                     help="已对齐到模型相机的原创正脸参考目录")
     args = cli.parse_args()
     target = ROOT / "assets" / "heads"
     target.mkdir(parents=True, exist_ok=True)
-    for key, (name, *_) in PLAYERS.items():
-        model = build_head(key, args.model_dir / f"{name}-头模.glb")
+    for key, (name, _) in PLAYERS.items():
+        portrait = args.portraits / f"{key}.jpg"
+        model = build_head(key, args.model_dir / f"{name}-头模.glb", portrait)
         (target / f"{key}.glb").write_bytes(model)
         print(key, len(model), "bytes")
 

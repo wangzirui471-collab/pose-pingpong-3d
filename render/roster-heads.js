@@ -6,7 +6,7 @@
   const scriptUrl = document.currentScript.src;
   const assets = new URL(scriptUrl ? '../assets/heads/' : 'assets/heads/', scriptUrl || document.baseURI);
   const roster = new Set(['fan', 'ma', 'wang', 'harimoto', 'sun', 'ovtcharov']);
-  const version = 'fullbody-1';
+  const version = 'fullbody-3';
 
   const model = window.PP.wangModel;
   const buildFallback = model.buildHead;
@@ -59,6 +59,7 @@
       }
     });
     if (!texture) throw new Error('头模缺少面部贴图');
+    texture.anisotropy = 4;
     return { head, texture };
   }
 
